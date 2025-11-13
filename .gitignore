@@ -1,0 +1,37 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+*.pyc
+__pycache__/
+
+# Environment Variables
+.env
+
+# Output Files
+output/
+*.mp4
+*.mp3
+*.wav
+
+# Assets (too large for git)
+assets/backgrounds/*.mp4
+assets/backgrounds/*.mov
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage

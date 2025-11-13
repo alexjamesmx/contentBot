@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(./venv/Scripts/python.exe:*)",
+      "Bash(python:*)",
+      "Bash(.venvScriptspython.exe -c \"from src.utils.config import ELEVENLABS_API_KEY; print(''ElevenLabs API Key is set:'', bool(ELEVENLABS_API_KEY))\")",
+      "WebFetch(domain:www.youtube.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(tree:*)",
+      "Bash(dir:*)",
+      "Bash(npm create:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(npx tailwindcss:*)",
+      "Bash(pip install:*)",
+      "Bash(npm run dev:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

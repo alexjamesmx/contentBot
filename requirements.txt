@@ -1,0 +1,32 @@
+# AI & Story Generation
+groq>=0.4.0                    # Groq API for fast LLM inference
+openai>=1.0.0                  # OpenAI as backup option
+
+# Video Processing
+moviepy>=1.0.3                 # Video composition and editing
+Pillow>=10.0.0                 # Image processing for subtitles
+
+# Text-to-Speech
+gTTS>=2.5.0                    # Google Text-to-Speech (free)
+elevenlabs>=0.2.0              # Premium TTS (optional - requires API key)
+
+# Reddit Scraping
+praw>=7.7.0                    # Reddit API wrapper
+playwright>=1.40.0             # Browser automation for screenshots
+
+# Subtitle Generation
+faster-whisper>=0.10.0         # Fast audio transcription
+
+# Utilities
+python-dotenv>=1.0.0           # Environment variable management
+requests>=2.31.0               # HTTP requests
+pydantic>=2.0.0                # Data validation
+
+# Publishing (Phase 2)
+# google-auth>=2.0.0           # YouTube API auth
+# google-auth-oauthlib>=1.0.0  # YouTube OAuth
+# google-api-python-client>=2.0.0  # YouTube API
+
+# Development
+black>=23.0.0                  # Code formatting
+pytest>=7.0.0                  # Testing
