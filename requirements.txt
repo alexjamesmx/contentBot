@@ -10,10 +10,6 @@ Pillow>=10.0.0                 # Image processing for subtitles
 gTTS>=2.5.0                    # Google Text-to-Speech (free)
 elevenlabs>=0.2.0              # Premium TTS (optional - requires API key)
 
-# Reddit Scraping
-praw>=7.7.0                    # Reddit API wrapper
-playwright>=1.40.0             # Browser automation for screenshots
-
 # Subtitle Generation
 faster-whisper>=0.10.0         # Fast audio transcription
 
@@ -22,10 +18,9 @@ python-dotenv>=1.0.0           # Environment variable management
 requests>=2.31.0               # HTTP requests
 pydantic>=2.0.0                # Data validation
 
-# Publishing (Phase 2)
-# google-auth>=2.0.0           # YouTube API auth
-# google-auth-oauthlib>=1.0.0  # YouTube OAuth
-# google-api-python-client>=2.0.0  # YouTube API
+# Flask Backend
+flask>=3.0.0                   # Web framework
+flask-cors>=4.0.0              # CORS support for React frontend
 
 # Development
 black>=23.0.0                  # Code formatting

@@ -94,33 +94,6 @@ class TTSGenerator:
             raise Exception(f"Failed to get audio duration: {str(e)}")
 
 
-# Available TTS accents
-TTS_ACCENTS = {
-    "us": ("en", "com"),           # US English
-    "uk": ("en", "co.uk"),         # British English
-    "aus": ("en", "com.au"),       # Australian English
-    "india": ("en", "co.in"),      # Indian English
-    "canada": ("en", "ca"),        # Canadian English
-}
-
-
-def get_tts_generator(accent: str = "us") -> TTSGenerator:
-    """Get TTS generator with specific accent.
-
-    Args:
-        accent: Accent code (us, uk, aus, india, canada)
-
-    Returns:
-        TTSGenerator instance
-    """
-    if accent not in TTS_ACCENTS:
-        print(f"⚠️  Unknown accent '{accent}', using 'us' instead")
-        accent = "us"
-
-    lang, tld = TTS_ACCENTS[accent]
-    return TTSGenerator(lang=lang, tld=tld)
-
-
 # CLI testing
 if __name__ == "__main__":
     import sys

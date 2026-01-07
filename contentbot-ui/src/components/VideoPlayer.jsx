@@ -32,13 +32,16 @@ export default function VideoPlayer({ src, poster, className = '' }) {
   return (
     <div className={`video-container relative group ${className}`}>
       <video
-        src={src}
-        poster={poster}
         className="w-full h-full rounded-lg bg-dark-bg"
+        poster={poster}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         controls
-      />
+        preload="metadata"
+      >
+        <source src={src} type="video/mp4; codecs=avc1.42E01E,mp4a.40.2" />
+        <p>Your browser doesn't support HTML5 video. <a href={src}>Download the video</a> instead.</p>
+      </video>
 
       {/* Custom Controls Overlay (optional) */}
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">

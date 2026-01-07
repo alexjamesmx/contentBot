@@ -1,17 +1,18 @@
 """Video composition - combine background, audio, and subtitles."""
 import random
+import tempfile
+import os
+import re
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Callable
 
 from moviepy import (
     VideoFileClip,
     AudioFileClip,
     TextClip,
-    ImageClip,
     CompositeVideoClip,
     concatenate_videoclips
 )
-import numpy as np
 
 from src.utils.config import (
     VIDEO_WIDTH,
@@ -22,6 +23,41 @@ from src.utils.config import (
     FONTS_DIR,
     REUSE_EXISTING_FILES
 )
+
+
+class ProgressLogger:
+    """Custom logger to track MoviePy rendering progress.
+
+    Wraps proglog.ProgressBarLogger to ensure full compatibility.
+    """
+
+    def __init__(self, duration: float, progress_callback: Optional[Callable] = None):
+        from proglog import ProgressBarLogger
+        self.proglog_logger = ProgressBarLogger()
+        self.duration = duration
+        self.progress_callback = progress_callback
+        self.last_progress = 0
+
+    def __call__(self, *args, **kwargs):
+        """Make logger callable - delegate to proglog logger."""
+        return self.proglog_logger(*args, **kwargs)
+
+    def __getattr__(self, name):
+        """Delegate all unknown methods to proglog logger."""
+        return getattr(self.proglog_logger, name)
+
+    def bars_callback(self, bar, attr, value, old_value=None):
+        """Override to track progress."""
+        if self.progress_callback and attr == 'index':
+            # Calculate progress based on frame index
+            if hasattr(bar, 'total') and bar.total:
+                progress = int((value / bar.total) * 100)
+                if progress != self.last_progress:
+                    self.last_progress = progress
+                    self.progress_callback(progress, f"Rendering frame {value}/{bar.total}")
+
+        # Call parent implementation
+        return self.proglog_logger.bars_callback(bar, attr, value, old_value)
 
 
 class VideoComposer:
@@ -58,10 +94,7 @@ class VideoComposer:
         output_path: Optional[str] = None,
         story_metadata: Optional[dict] = None,
         genre: str = "comedy",
-        screenshot_path: Optional[str] = None,
-        screenshot_position: str = "center",
-        comment_screenshots: Optional[List[str]] = None,
-        comment_display_mode: str = "sequential"
+        progress_callback: Optional[Callable] = None
     ) -> str:
         """Create final video with all components.
 
@@ -72,10 +105,7 @@ class VideoComposer:
             output_path: Output path (auto-generated if None)
             story_metadata: Optional story info for filename
             genre: Video genre for font/styling
-            screenshot_path: Path to Reddit post screenshot (if using screenshots)
-            screenshot_position: Screenshot position (top, center, bottom)
-            comment_screenshots: List of comment screenshot paths
-            comment_display_mode: How to display comments ("sequential", "overlay", "slide")
+            progress_callback: Optional callback for progress updates
 
         Returns:
             Path to generated video
@@ -97,29 +127,8 @@ class VideoComposer:
         # Set audio to background
         video_with_audio = background.with_audio(audio)
 
-        # Add screenshot overlay if provided (Reddit mode)
-        if screenshot_path:
-            print("[SCREENSHOT] Adding Reddit screenshot overlay...")
-
-            # If we have comment screenshots, add them too
-            if comment_screenshots:
-                print(f"[COMMENTS] Adding {len(comment_screenshots)} comment screenshot(s)...")
-                video_with_screenshot = self._add_screenshots_with_comments(
-                    video_with_audio,
-                    screenshot_path,
-                    comment_screenshots,
-                    position=screenshot_position,
-                    display_mode=comment_display_mode
-                )
-            else:
-                video_with_screenshot = self._add_screenshot_overlay(
-                    video_with_audio,
-                    screenshot_path,
-                    position=screenshot_position
-                )
-            video_with_subtitles = video_with_screenshot
-        # Otherwise add text subtitles
-        elif subtitles:
+        # Add text subtitles if provided
+        if subtitles:
             # Get font name for display
             font_path = self._get_viral_font(genre)
             font_name = Path(font_path).name if font_path else "system default"
@@ -154,15 +163,37 @@ class VideoComposer:
         print(f"[RENDER] Rendering video to: {output_path.name}")
         print("[WAIT] This may take a minute...")
 
-        video_with_subtitles.write_videofile(
-            str(output_path),
-            fps=self.fps,
-            codec='libx264',
-            audio_codec='aac',
-            temp_audiofile='temp-audio.m4a',
-            remove_temp=True,
-            logger='bar'  # Progress bar (can be 'bar' or None for quiet)
-        )
+        # Use truly unique temp audio file to prevent Windows file locking issues
+        # Create temp file in system temp directory with unique name
+        temp_fd, temp_audio = tempfile.mkstemp(suffix='.m4a', prefix='contentbot_')
+        os.close(temp_fd)  # Close file descriptor, MoviePy will handle the file
+
+        # Create progress logger if callback provided
+        logger = ProgressLogger(audio_duration, progress_callback) if progress_callback else 'bar'
+
+        try:
+            video_with_subtitles.write_videofile(
+                str(output_path),
+                fps=self.fps,
+                codec='libx264',
+                audio_codec='aac',
+                temp_audiofile=temp_audio,
+                remove_temp=True,
+                logger=logger,
+                preset='medium',
+                bitrate='3000k',
+                ffmpeg_params=[
+                    '-pix_fmt', 'yuv420p',
+                    '-movflags', '+faststart'
+                ]
+            )
+        finally:
+            # Ensure temp file is cleaned up even if there's an error
+            if os.path.exists(temp_audio):
+                try:
+                    os.remove(temp_audio)
+                except:
+                    pass  # Ignore cleanup errors
 
         # Cleanup
         audio.close()
@@ -211,9 +242,18 @@ class VideoComposer:
             # Loop the video
             num_loops = int(target_duration / clip.duration) + 1
             clip = concatenate_videoclips([clip] * num_loops)
-
-        # Trim to exact duration
-        clip = clip.subclipped(0, target_duration)
+            clip = clip.subclipped(0, target_duration)
+        elif clip.duration > target_duration:
+            # Randomly cut from the middle to keep interesting parts
+            max_start = clip.duration - target_duration
+            if max_start > 0:
+                random_start = random.random() * max_start
+                clip = clip.subclipped(random_start, random_start + target_duration)
+            else:
+                clip = clip.subclipped(0, target_duration)
+        else:
+            # Exact match, no modification needed
+            pass
 
         return clip
 
@@ -242,27 +282,23 @@ class VideoComposer:
         text_color = 'yellow' if self.use_yellow_text else 'white'
 
         for i, (start, end, text) in enumerate(subtitles):
-            # Create text clip with viral font
             txt_clip = TextClip(
                 text=text.upper(),
                 font=font_path,
-                font_size=80,  # Slightly smaller to prevent cutoff
+                font_size=72,
                 color=text_color,
                 stroke_color='black',
-                stroke_width=5,  # Thick outline for mobile
-                size=(self.width - 140, None),
+                stroke_width=4,
+                size=(self.width - 200, None),
                 method='caption',
                 text_align='center',
                 horizontal_align='center'
             )
 
-            # Position higher to prevent cutoff (65% instead of 72%)
-            txt_clip = txt_clip.with_position(('center', self.height * 0.65))
+            y_position = self.height - txt_clip.h - 280
+            txt_clip = txt_clip.with_position(('center', y_position))
             txt_clip = txt_clip.with_start(start)
             txt_clip = txt_clip.with_duration(end - start)
-
-            # TODO: Add slide-in animations in Phase 2
-            # MoviePy 2.x needs different approach for animations
 
             subtitle_clips.append(txt_clip)
 
@@ -328,282 +364,6 @@ class VideoComposer:
         print("[WARN] No custom fonts found, using system default")
         return None  # MoviePy will use default
 
-    def _apply_screenshot_animation(
-        self,
-        screenshot: ImageClip,
-        animation_type: str = "fade_in",
-        duration: float = 0.3
-    ) -> ImageClip:
-        """Apply animation effect to screenshot.
-
-        Args:
-            screenshot: Screenshot clip to animate
-            animation_type: Type of animation ("fade_in", "slide_up", "zoom_in")
-            duration: Animation duration in seconds
-
-        Returns:
-            Animated screenshot clip
-        """
-        if animation_type == "fade_in":
-            # Fade in effect
-            def fade_in_effect(get_frame, t):
-                frame = get_frame(t)
-                if t < duration:
-                    alpha = t / duration
-                    return (frame * alpha).astype('uint8')
-                return frame
-
-            return screenshot.transform(fade_in_effect)
-
-        elif animation_type == "slide_up":
-            # Slide up from bottom effect
-            original_pos = screenshot.pos
-            def slide_position(t):
-                if t < duration:
-                    progress = t / duration
-                    # Ease out effect
-                    progress = 1 - (1 - progress) ** 3
-                    if callable(original_pos):
-                        x, y = original_pos(t)
-                    else:
-                        x, y = original_pos
-                    # Start from bottom of screen
-                    start_y = self.height
-                    return (x, start_y + (y - start_y) * progress)
-                return original_pos
-
-            return screenshot.with_position(slide_position)
-
-        elif animation_type == "zoom_in":
-            # Zoom in effect
-            def zoom_effect(t):
-                if t < duration:
-                    progress = t / duration
-                    # Start at 0.8x scale, zoom to 1.0x
-                    scale = 0.8 + (0.2 * progress)
-                    return scale
-                return 1.0
-
-            return screenshot.resized(lambda t: zoom_effect(t))
-
-        return screenshot
-
-    def _add_screenshots_with_comments(
-        self,
-        video: VideoFileClip,
-        post_screenshot_path: str,
-        comment_screenshots: List[str],
-        position: str = "center",
-        display_mode: str = "sequential"
-    ) -> CompositeVideoClip:
-        """Add Reddit post and comment screenshots to video.
-
-        Args:
-            video: Base video clip
-            post_screenshot_path: Path to main post screenshot PNG
-            comment_screenshots: List of comment screenshot paths
-            position: Vertical position (top, center, bottom)
-            display_mode: Display mode ("sequential", "overlay", "slide")
-
-        Returns:
-            Video with screenshot overlays
-        """
-        all_clips = [video]
-
-        # Calculate timing: divide video duration among post + comments
-        total_duration = video.duration
-        num_screenshots = 1 + len(comment_screenshots)  # post + comments
-        duration_per_screenshot = total_duration / num_screenshots
-
-        # Load and prepare all screenshots
-        screenshots_data = [(post_screenshot_path, 0)]  # (path, start_time)
-
-        for i, comment_path in enumerate(comment_screenshots):
-            start_time = duration_per_screenshot * (i + 1)
-            screenshots_data.append((comment_path, start_time))
-
-        # Add screenshots based on display mode
-        if display_mode == "sequential":
-            # Show one screenshot at a time (sequential display)
-            for idx, (screenshot_path, start_time) in enumerate(screenshots_data):
-                screenshot = ImageClip(screenshot_path)
-
-                # Scale to fit
-                max_width = self.width - 80
-                if screenshot.w > max_width:
-                    scale_factor = max_width / screenshot.w
-                    screenshot = screenshot.resized(scale_factor)
-
-                max_height = self.height * 0.7
-                if screenshot.h > max_height:
-                    scale_factor = max_height / screenshot.h
-                    screenshot = screenshot.resized(scale_factor)
-
-                # Position
-                if position == "top":
-                    y_pos = 100
-                elif position == "bottom":
-                    y_pos = self.height - screenshot.h - 100
-                else:  # center
-                    y_pos = (self.height - screenshot.h) / 2
-
-                screenshot = screenshot.with_position(("center", y_pos))
-                screenshot = screenshot.with_start(start_time)
-                screenshot = screenshot.with_duration(duration_per_screenshot)
-
-                # Apply animation (alternate between different animations for variety)
-                animations = ["fade_in", "slide_up", "zoom_in"]
-                animation_type = animations[idx % len(animations)]
-                screenshot = self._apply_screenshot_animation(
-                    screenshot,
-                    animation_type=animation_type,
-                    duration=0.4
-                )
-
-                all_clips.append(screenshot)
-
-        elif display_mode == "overlay":
-            # Show all screenshots overlaid (stacked vertically with slight offset)
-            for idx, (screenshot_path, start_time) in enumerate(screenshots_data):
-                screenshot = ImageClip(screenshot_path)
-
-                # Scale smaller for overlay mode
-                max_width = self.width - 200
-                if screenshot.w > max_width:
-                    scale_factor = max_width / screenshot.w
-                    screenshot = screenshot.resized(scale_factor)
-
-                max_height = self.height * 0.3  # Smaller for overlay
-                if screenshot.h > max_height:
-                    scale_factor = max_height / screenshot.h
-                    screenshot = screenshot.resized(scale_factor)
-
-                # Stack vertically with slight offset
-                y_offset = idx * (screenshot.h + 20)  # 20px gap
-                base_y = 150
-
-                screenshot = screenshot.with_position(("center", base_y + y_offset))
-                screenshot = screenshot.with_start(0)  # All visible from start
-                screenshot = screenshot.with_duration(total_duration)
-
-                # Add fade in staggered
-                screenshot = self._apply_screenshot_animation(
-                    screenshot,
-                    animation_type="fade_in",
-                    duration=0.3
-                ).with_start(idx * 0.5)  # Stagger by 0.5s
-
-                all_clips.append(screenshot)
-
-        elif display_mode == "slide":
-            # Slide transition between screenshots (horizontal slide)
-            for idx, (screenshot_path, start_time) in enumerate(screenshots_data):
-                screenshot = ImageClip(screenshot_path)
-
-                # Scale to fit
-                max_width = self.width - 80
-                if screenshot.w > max_width:
-                    scale_factor = max_width / screenshot.w
-                    screenshot = screenshot.resized(scale_factor)
-
-                max_height = self.height * 0.7
-                if screenshot.h > max_height:
-                    scale_factor = max_height / screenshot.h
-                    screenshot = screenshot.resized(scale_factor)
-
-                # Calculate y position
-                if position == "top":
-                    y_pos = 100
-                elif position == "bottom":
-                    y_pos = self.height - screenshot.h - 100
-                else:  # center
-                    y_pos = (self.height - screenshot.h) / 2
-
-                # Slide transition effect
-                transition_duration = 0.5
-                def make_slide_position(start_t, y_position):
-                    def slide_pos(t):
-                        # Slide in from right
-                        if t < start_t:
-                            return (self.width + 100, y_position)
-                        elif t < start_t + transition_duration:
-                            progress = (t - start_t) / transition_duration
-                            # Ease out cubic
-                            progress = 1 - (1 - progress) ** 3
-                            x_pos = self.width + 100 + (self.width / 2 - screenshot.w / 2 - (self.width + 100)) * progress
-                            return (x_pos, y_position)
-                        else:
-                            return ("center", y_position)
-                    return slide_pos
-
-                screenshot = screenshot.with_position(make_slide_position(start_time, y_pos))
-                screenshot = screenshot.with_start(start_time)
-                screenshot = screenshot.with_duration(duration_per_screenshot)
-
-                all_clips.append(screenshot)
-
-        # Composite all clips
-        final_video = CompositeVideoClip(all_clips)
-        return final_video
-
-    def _add_screenshot_overlay(
-        self,
-        video: VideoFileClip,
-        screenshot_path: str,
-        position: str = "center",
-        animate: bool = True
-    ) -> CompositeVideoClip:
-        """Add Reddit screenshot overlay to video.
-
-        Args:
-            video: Base video clip
-            screenshot_path: Path to screenshot PNG
-            position: Vertical position (top, center, bottom)
-            animate: Whether to apply animation effect
-
-        Returns:
-            Video with screenshot overlay
-        """
-        # Load screenshot as image clip
-        screenshot = ImageClip(screenshot_path)
-
-        # Scale screenshot to fit video width (with padding)
-        max_width = self.width - 80  # 40px padding on each side
-        if screenshot.w > max_width:
-            scale_factor = max_width / screenshot.w
-            screenshot = screenshot.resized(scale_factor)
-
-        # Also limit height to 70% of video height
-        max_height = self.height * 0.7
-        if screenshot.h > max_height:
-            scale_factor = max_height / screenshot.h
-            screenshot = screenshot.resized(scale_factor)
-
-        # Set duration to match video
-        screenshot = screenshot.with_duration(video.duration)
-
-        # Position screenshot
-        if position == "top":
-            y_pos = 100  # 100px from top
-        elif position == "bottom":
-            y_pos = self.height - screenshot.h - 100  # 100px from bottom
-        else:  # center
-            y_pos = (self.height - screenshot.h) / 2
-
-        screenshot = screenshot.with_position(("center", y_pos))
-
-        # Apply animation if enabled
-        if animate:
-            screenshot = self._apply_screenshot_animation(
-                screenshot,
-                animation_type="fade_in",
-                duration=0.5
-            )
-
-        # Composite video with screenshot
-        final_video = CompositeVideoClip([video, screenshot])
-
-        return final_video
 
     def _get_random_background(self) -> str:
         """Get random background video from backgrounds directory.

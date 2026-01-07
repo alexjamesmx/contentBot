@@ -28,7 +28,8 @@ class StoryGenerator:
         genre: str = "comedy",
         custom_prompt: Optional[str] = None,
         temperature: float = STORY_TEMPERATURE,
-        max_tokens: int = STORY_MAX_TOKENS
+        max_tokens: int = STORY_MAX_TOKENS,
+        target_duration: int = 60
     ) -> dict:
         """Generate a viral story.
 
@@ -37,6 +38,7 @@ class StoryGenerator:
             custom_prompt: Optional custom prompt (overrides template)
             temperature: Creativity level (0.0-2.0, higher = more creative)
             max_tokens: Maximum story length
+            target_duration: Target duration in seconds (default: 60)
 
         Returns:
             dict with 'story', 'hook', 'genre', 'template_used'
@@ -52,6 +54,11 @@ class StoryGenerator:
             hook = random.choice(template["hook_patterns"])
             structure = random.choice(template["structure_prompts"])
 
+            # Calculate target word count (average 2.5 words per second)
+            target_words = int(target_duration * 2.5)
+            min_words = int(target_words * 0.8)
+            max_words = int(target_words * 1.2)
+
             user_prompt = f"""Generate a viral {template['name']} story.
 
 Hook to use: "{hook}"
@@ -60,18 +67,24 @@ Story structure: {structure}
 
 STRICT REQUIREMENTS:
 - Start with the hook EXACTLY as written
-- Target 30-60 seconds when read aloud (75-150 words TOTAL - COUNT YOUR WORDS)
-- MUST have complete beginning, middle, and END with twist/reveal/punchline
+- Target {target_duration} seconds when read aloud ({min_words}-{max_words} words)
+- MUST have complete beginning, middle, and END with twist/punchline
 - Every sentence must advance the story - no filler
-- End with IMPACT - satisfying conclusion, not mid-story cutoff
+- End with IMPACT - satisfying conclusion
 - Write in first person, conversational, fast-paced
+- COUNT YOUR WORDS - aim for EXACTLY {target_words} words
 
-CRITICAL: This is a complete SHORT story. Do NOT cut off mid-narrative.
-Give viewers a satisfying ending in under 150 words.
+IMPORTANT: Write the FULL {target_words}-word story. Don't stop early!
 
-Generate the COMPLETE story now:"""
+Generate the story now:"""
 
         # Generate with Groq
+        # Calculate dynamic max_tokens based on target duration (give AI enough room)
+        if not custom_prompt:
+            dynamic_max_tokens = max(max_tokens, int(target_words * 2))
+        else:
+            dynamic_max_tokens = max_tokens
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -80,7 +93,7 @@ Generate the COMPLETE story now:"""
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=temperature,
-                max_tokens=max_tokens,
+                max_tokens=dynamic_max_tokens,
                 top_p=0.95,
                 stream=False
             )
@@ -102,40 +115,6 @@ Generate the COMPLETE story now:"""
         except Exception as e:
             raise Exception(f"Story generation failed: {str(e)}")
 
-    def generate_batch(
-        self,
-        count: int = 5,
-        genre: Optional[str] = None,
-        mix_genres: bool = True
-    ) -> list[dict]:
-        """Generate multiple stories.
-
-        Args:
-            count: Number of stories to generate
-            genre: Specific genre (if None and mix_genres=False, uses random)
-            mix_genres: Generate mix of all genres
-
-        Returns:
-            List of story dicts
-        """
-        stories = []
-
-        if mix_genres:
-            genres = list_genres()
-            selected_genres = [random.choice(genres) for _ in range(count)]
-        else:
-            selected_genres = [genre or random.choice(list_genres())] * count
-
-        for genre in selected_genres:
-            try:
-                story = self.generate_story(genre=genre)
-                stories.append(story)
-                print(f"✅ Generated {genre} story ({story['word_count']} words)")
-            except Exception as e:
-                print(f"❌ Failed to generate {genre} story: {e}")
-                continue
-
-        return stories
 
     def _estimate_duration(self, text: str) -> float:
         """Estimate audio duration in seconds.

@@ -114,7 +114,7 @@ class VideoMetadata:
         metadata = {
             "video": {
                 "path": video_path,
-                "duration": story['estimated_duration'],
+                "duration": story.get('estimated_duration', 0),
                 "format": "vertical_9:16",
                 "resolution": "1080x1920",
                 "created_at": datetime.now().isoformat()
@@ -122,7 +122,7 @@ class VideoMetadata:
             "content": {
                 "genre": genre,
                 "story": story['story'],
-                "word_count": story['word_count'],
+                "word_count": story.get('word_count', len(story['story'].split())),
                 "hook": story.get('hook', ''),
                 "template": story.get('template_used', '')
             },
@@ -148,16 +148,6 @@ class VideoMetadata:
 
         return metadata
 
-    def save_metadata(self, metadata: Dict, output_path: str):
-        """Save metadata to JSON file.
-
-        Args:
-            metadata: Metadata dict
-            output_path: Path to save JSON
-        """
-        output_path = Path(output_path)
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(metadata, f, indent=2, ensure_ascii=False)
 
     def _get_music_suggestions(self, genre: str) -> List[str]:
         """Get trending music suggestions by genre.
@@ -189,7 +179,7 @@ class VideoMetadata:
         score = 50  # Base score
 
         # Duration bonus (30-60s is optimal)
-        duration = story['estimated_duration']
+        duration = story.get('estimated_duration', 45)
         if 30 <= duration <= 60:
             score += 20
         elif duration < 30:
@@ -198,7 +188,7 @@ class VideoMetadata:
             score -= 20
 
         # Word count bonus (100-150 optimal)
-        word_count = story['word_count']
+        word_count = story.get('word_count', 100)
         if 100 <= word_count <= 150:
             score += 15
         elif word_count < 80:

@@ -15,7 +15,10 @@
       "Bash(npm install:*)",
       "Bash(npx tailwindcss:*)",
       "Bash(pip install:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(findstr:*)",
+      "Bash(timeout 10 python:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

@@ -10,6 +10,7 @@ __pycache__/
 
 # Output Files
 output/
+cache/
 *.mp4
 *.mp3
 *.wav
@@ -17,6 +18,7 @@ output/
 # Assets (too large for git)
 assets/backgrounds/*.mp4
 assets/backgrounds/*.mov
+assets/backgrounds/*.webm
 
 # IDE
 .vscode/
@@ -27,6 +29,13 @@ assets/backgrounds/*.mov
 # OS
 .DS_Store
 Thumbs.db
+NUL
+nul
+
+# Temp files
+temp_*
+*.tmp
+*.temp
 
 # Logs
 *.log
@@ -35,3 +44,11 @@ Thumbs.db
 .pytest_cache/
 htmlcov/
 .coverage
+test_*.py
+check_*.py
+quick_*.py
+
+# Backup files
+*.backup
+*.old
+*.bak
