@@ -1,36 +1,66 @@
 import { useState, useRef, useEffect } from 'react'
-import { Play, Pause, Volume2, VolumeX } from 'lucide-react'
+import { Play, Pause, Volume2, VolumeX, Loader } from 'lucide-react'
 
 export default function AudioPlayer({ src, className = '' }) {
   const [playing, setPlaying] = useState(false)
   const [muted, setMuted] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const audioRef = useRef(null)
 
   useEffect(() => {
     const audio = audioRef.current
-    if (!audio) return
+    if (!audio || !src) return
+
+    setLoading(true)
+    setError(null)
+    setPlaying(false)
 
     const updateTime = () => setCurrentTime(audio.currentTime)
-    const updateDuration = () => setDuration(audio.duration)
+    const updateDuration = () => {
+      setDuration(audio.duration)
+      setLoading(false)
+    }
+    const handleError = (e) => {
+      console.error('Audio error:', e)
+      setError('Failed to load audio')
+      setLoading(false)
+    }
+    const handleCanPlay = () => setLoading(false)
 
     audio.addEventListener('timeupdate', updateTime)
     audio.addEventListener('loadedmetadata', updateDuration)
+    audio.addEventListener('canplay', handleCanPlay)
+    audio.addEventListener('error', handleError)
+
+    // Force reload when src changes
+    audio.load()
 
     return () => {
+      audio.pause()
       audio.removeEventListener('timeupdate', updateTime)
       audio.removeEventListener('loadedmetadata', updateDuration)
+      audio.removeEventListener('canplay', handleCanPlay)
+      audio.removeEventListener('error', handleError)
     }
-  }, [])
+  }, [src])
 
-  const handlePlayPause = () => {
-    if (audioRef.current.paused) {
-      audioRef.current.play()
-      setPlaying(true)
-    } else {
-      audioRef.current.pause()
-      setPlaying(false)
+  const handlePlayPause = async () => {
+    if (!audioRef.current || loading || error) return
+
+    try {
+      if (audioRef.current.paused) {
+        await audioRef.current.play()
+        setPlaying(true)
+      } else {
+        audioRef.current.pause()
+        setPlaying(false)
+      }
+    } catch (err) {
+      console.error('Play error:', err)
+      setError('Failed to play audio')
     }
   }
 
@@ -51,15 +81,30 @@ export default function AudioPlayer({ src, className = '' }) {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
+  if (error) {
+    return (
+      <div className={`flex items-center gap-3 p-4 bg-dark-card rounded-lg border border-red-500 ${className}`}>
+        <p className="text-sm text-red-400">{error}</p>
+      </div>
+    )
+  }
+
   return (
     <div className={`flex items-center gap-3 p-4 bg-dark-card rounded-lg border border-dark-border ${className}`}>
-      <audio ref={audioRef} src={src} onEnded={() => setPlaying(false)} />
+      <audio
+        ref={audioRef}
+        src={src}
+        onEnded={() => setPlaying(false)}
+        crossOrigin="anonymous"
+        preload="auto"
+      />
 
       <button
         onClick={handlePlayPause}
-        className="p-2 bg-primary-600 hover:bg-primary-700 rounded-full transition-colors"
+        disabled={loading}
+        className="p-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-full transition-colors"
       >
-        {playing ? <Pause size={16} /> : <Play size={16} />}
+        {loading ? <Loader size={16} className="animate-spin" /> : playing ? <Pause size={16} /> : <Play size={16} />}
       </button>
 
       <div className="flex-1 flex items-center gap-3">
@@ -70,8 +115,8 @@ export default function AudioPlayer({ src, className = '' }) {
           onClick={handleSeek}
         >
           <div
-            className="h-full bg-primary-600 rounded-full"
-            style={{ width: `${(currentTime / duration) * 100}%` }}
+            className="h-full bg-primary-600 rounded-full transition-all"
+            style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
           ></div>
         </div>
 
@@ -80,7 +125,8 @@ export default function AudioPlayer({ src, className = '' }) {
 
       <button
         onClick={handleMute}
-        className="p-2 bg-dark-hover hover:bg-opacity-80 rounded-full transition-colors"
+        disabled={loading}
+        className="p-2 bg-dark-hover hover:bg-opacity-80 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-full transition-colors"
       >
         {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
       </button>

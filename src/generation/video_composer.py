@@ -281,6 +281,10 @@ class VideoComposer:
         # Yellow text = more viral
         text_color = 'yellow' if self.use_yellow_text else 'white'
 
+        # Safe zone positioning (based on 2025 TikTok/Shorts standards)
+        # Bottom 420px reserved for UI elements
+        safe_bottom_margin = 420
+
         for i, (start, end, text) in enumerate(subtitles):
             txt_clip = TextClip(
                 text=text.upper(),
@@ -292,10 +296,20 @@ class VideoComposer:
                 size=(self.width - 200, None),
                 method='caption',
                 text_align='center',
-                horizontal_align='center'
+                horizontal_align='center',
+                vertical_align='bottom'
             )
 
-            y_position = self.height - txt_clip.h - 280
+            # Calculate Y position using safe zone margin
+            # Use max() to ensure we don't go below safe zone even if text is tall
+            text_height = txt_clip.h if txt_clip.h else 100
+            y_position = max(
+                self.height - safe_bottom_margin - text_height,
+                self.height * 0.6
+            )
+
+            print(f"[SUBTITLE] Text: '{text[:30]}...' | Height: {text_height}px | Y-pos: {y_position}px | Bottom margin: {self.height - y_position - text_height}px")
+
             txt_clip = txt_clip.with_position(('center', y_position))
             txt_clip = txt_clip.with_start(start)
             txt_clip = txt_clip.with_duration(end - start)

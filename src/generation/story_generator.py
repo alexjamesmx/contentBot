@@ -54,29 +54,35 @@ class StoryGenerator:
             hook = random.choice(template["hook_patterns"])
             structure = random.choice(template["structure_prompts"])
 
-            # Calculate target word count (average 2.5 words per second)
-            target_words = int(target_duration * 2.5)
-            min_words = int(target_words * 0.8)
-            max_words = int(target_words * 1.2)
+            # Calculate target word count - MORE AGGRESSIVE (AI tends to write short)
+            # Use 3 words per second to compensate for AI's conservative writing
+            target_words = int(target_duration * 3)
+            min_words = target_words
+            max_words = int(target_words * 1.3)
 
-            user_prompt = f"""Generate a viral {template['name']} story.
+            user_prompt = f"""You are a viral short-form content creator. Generate a {template['name']} story that is EXACTLY {target_duration} seconds when read aloud.
 
-Hook to use: "{hook}"
+Hook: "{hook}"
+Structure: {structure}
 
-Story structure: {structure}
+CRITICAL WORD COUNT REQUIREMENT:
+- MINIMUM {min_words} words REQUIRED
+- TARGET {target_words} words (ideal)
+- Read time: {target_duration} seconds
+- This is NOT optional - you MUST reach {min_words} words minimum
 
-STRICT REQUIREMENTS:
+Story Requirements:
 - Start with the hook EXACTLY as written
-- Target {target_duration} seconds when read aloud ({min_words}-{max_words} words)
-- MUST have complete beginning, middle, and END with twist/punchline
-- Every sentence must advance the story - no filler
-- End with IMPACT - satisfying conclusion
-- Write in first person, conversational, fast-paced
-- COUNT YOUR WORDS - aim for EXACTLY {target_words} words
+- Complete story arc: setup → conflict → twist/punchline
+- First person, conversational, TikTok style
+- Every word must advance the plot
+- Strong ending with impact
 
-IMPORTANT: Write the FULL {target_words}-word story. Don't stop early!
+WORD COUNT CHECK:
+Before submitting, count your words. If less than {min_words}, KEEP WRITING until you reach it.
+Aim for {target_words} words total.
 
-Generate the story now:"""
+Generate the {target_words}-word story now:"""
 
         # Generate with Groq
         # Calculate dynamic max_tokens based on target duration (give AI enough room)

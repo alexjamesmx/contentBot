@@ -170,12 +170,15 @@ def generate_audio():
     voice = data.get('voice', 'default')
     use_elevenlabs = data.get('use_elevenlabs', bool(ELEVENLABS_API_KEY))
 
+    print(f"[AUDIO] Voice requested: {voice}")
+    print(f"[AUDIO] Using ElevenLabs: {use_elevenlabs}")
+
     if not text:
         return jsonify({'success': False, 'error': 'Text is required'}), 400
 
     try:
-        # Generate unique filename based on text hash
-        audio_hash = abs(hash(text))
+        # Generate unique filename based on text + voice hash
+        audio_hash = abs(hash(text + voice))
         output_path = PENDING_DIR / f"audio_{audio_hash}.mp3"
 
         if use_elevenlabs and ELEVENLABS_API_KEY:
@@ -427,7 +430,10 @@ def serve_video(filename):
 @app.route('/api/files/audio/<filename>', methods=['GET'])
 def serve_audio(filename):
     """Serve audio file"""
-    return send_from_directory(PENDING_DIR, filename, mimetype='audio/mpeg')
+    response = send_from_directory(PENDING_DIR, filename, mimetype='audio/mpeg')
+    response.headers['Accept-Ranges'] = 'bytes'
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
 
 @app.route('/api/files/background/<filename>', methods=['GET'])
 def serve_background(filename):

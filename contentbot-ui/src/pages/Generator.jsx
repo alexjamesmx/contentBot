@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Play, Download, Loader, CheckCircle, AlertCircle, Edit2, Check, X } from 'lucide-react'
+import { Play, Download, Loader, CheckCircle, AlertCircle, Edit2, Check, X, ArrowLeft, Trash2, RefreshCw } from 'lucide-react'
 import axios from 'axios'
 import AudioPlayer from '../components/AudioPlayer'
 import VideoPlayer from '../components/VideoPlayer'
@@ -7,10 +7,12 @@ import VideoPlayer from '../components/VideoPlayer'
 const API_URL = 'http://localhost:5000/api'
 
 const VOICES = [
-  { id: 'mark', name: 'Mark', desc: 'Friendly narrator' },
-  { id: 'emily', name: 'Emily', desc: 'Professional female' },
-  { id: 'josh', name: 'Josh', desc: 'Energetic male' },
-  { id: 'bella', name: 'Bella', desc: 'Warm female' },
+  { id: 'mark', name: 'Mark', desc: 'Storytelling, casual TikToks' },
+  { id: 'snap', name: 'Snap', desc: 'Playful, Gen-Z, memes' },
+  { id: 'peter', name: 'Peter', desc: 'Bold narrator, trending' },
+  { id: 'viraj', name: 'Viraj', desc: 'Warm, passionate, expressive' },
+  { id: 'rachel', name: 'Rachel', desc: 'Clear, professional' },
+  { id: 'adam', name: 'Adam', desc: 'Deep, authoritative' },
 ]
 
 export default function Generator() {
@@ -158,6 +160,46 @@ export default function Generator() {
     setError('')
   }
 
+  const handleGoBack = () => {
+    if (step > 0) {
+      setStep(step - 1)
+      setError('')
+    }
+  }
+
+  const handleDeleteAudio = () => {
+    setAudioData(null)
+    setStep(1)
+  }
+
+  const handleDeleteSubtitles = () => {
+    setSubtitleData(null)
+    setEditSubtitles([])
+    setStep(2)
+  }
+
+  const handleDeleteVideo = () => {
+    setVideoData(null)
+    setStep(3)
+  }
+
+  const handleRegenerateStory = async () => {
+    setStoryData(null)
+    setEditStory('')
+    await handleGenerateStory()
+  }
+
+  const handleRegenerateAudio = async () => {
+    setAudioData(null)
+    await handleGenerateAudio()
+  }
+
+  const handleRegenerateSubtitles = async () => {
+    setSubtitleData(null)
+    setEditSubtitles([])
+    await handleGenerateSubtitles()
+  }
+
   return (
     <div className="p-8">
       <div className="mb-8">
@@ -211,21 +253,23 @@ export default function Generator() {
               </select>
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Voice</label>
-              <select
-                value={selectedVoice}
-                onChange={(e) => setSelectedVoice(e.target.value)}
-                className="input w-full"
-                disabled={step > 1}
-              >
-                {VOICES.map(voice => (
-                  <option key={voice.id} value={voice.id}>
-                    {voice.name} - {voice.desc}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {useElevenLabs && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">Voice (ElevenLabs)</label>
+                <select
+                  value={selectedVoice}
+                  onChange={(e) => setSelectedVoice(e.target.value)}
+                  className="input w-full"
+                  disabled={step > 1}
+                >
+                  {VOICES.map(voice => (
+                    <option key={voice.id} value={voice.id}>
+                      {voice.name} - {voice.desc}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="mb-4">
               <label className="block text-sm font-medium mb-2">
@@ -310,14 +354,42 @@ export default function Generator() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold">Story</h3>
                 <div className="flex gap-2">
-                  {step === 1 && !loading && (
-                    <button
-                      onClick={handleGenerateAudio}
-                      className="btn-primary flex items-center gap-2"
-                    >
-                      <CheckCircle size={16} />
-                      Looks Good - Generate Audio
-                    </button>
+                  {step === 1 && (
+                    <>
+                      <button
+                        onClick={handleGoBack}
+                        className="btn-secondary flex items-center gap-2"
+                        disabled={loading}
+                      >
+                        <ArrowLeft size={16} />
+                        Back
+                      </button>
+                      <button
+                        onClick={handleRegenerateStory}
+                        className="btn-secondary flex items-center gap-2"
+                        disabled={loading}
+                      >
+                        {loading ? <Loader size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                        Regenerate
+                      </button>
+                      <button
+                        onClick={handleGenerateAudio}
+                        className="btn-primary flex items-center gap-2"
+                        disabled={loading}
+                      >
+                        {loading ? (
+                          <>
+                            <Loader size={16} className="animate-spin" />
+                            Generating Audio...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle size={16} />
+                            Generate Audio
+                          </>
+                        )}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -325,7 +397,7 @@ export default function Generator() {
                 value={editStory}
                 onChange={(e) => setEditStory(e.target.value)}
                 className="input w-full h-32 resize-none font-mono text-sm"
-                disabled={step > 1}
+                disabled={step > 1 || loading}
               />
               <p className="text-sm text-gray-400 mt-2">
                 {editStory.split(' ').length} words • ~{Math.ceil(editStory.split(' ').length / 2.5)}s
@@ -338,18 +410,54 @@ export default function Generator() {
             <div className="card">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold">Audio Preview</h3>
-                {step === 2 && !loading && (
-                  <button
-                    onClick={handleGenerateSubtitles}
-                    className="btn-primary flex items-center gap-2"
-                  >
-                    <CheckCircle size={16} />
-                    Next - Generate Subtitles
-                  </button>
+                {step === 2 && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleGoBack}
+                      className="btn-secondary flex items-center gap-2"
+                      disabled={loading}
+                    >
+                      <ArrowLeft size={16} />
+                      Back
+                    </button>
+                    <button
+                      onClick={handleDeleteAudio}
+                      className="btn-secondary flex items-center gap-2 text-red-400 hover:bg-red-900"
+                      disabled={loading}
+                    >
+                      <Trash2 size={16} />
+                      Delete
+                    </button>
+                    <button
+                      onClick={handleRegenerateAudio}
+                      className="btn-secondary flex items-center gap-2"
+                      disabled={loading}
+                    >
+                      {loading ? <Loader size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                      Regenerate
+                    </button>
+                    <button
+                      onClick={handleGenerateSubtitles}
+                      className="btn-primary flex items-center gap-2"
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <>
+                          <Loader size={16} className="animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle size={16} />
+                          Generate Subtitles
+                        </>
+                      )}
+                    </button>
+                  </div>
                 )}
               </div>
               <AudioPlayer
-                src={`${API_URL}/files/audio/${audioData.audio_path.split('/').pop()}`}
+                src={`${API_URL}/files/audio/${audioData.audio_path.split(/[\\/]/).pop()}`}
               />
               <p className="text-sm text-gray-400 mt-2">
                 Duration: {audioData.duration?.toFixed(1)}s • Voice: {selectedVoice}
@@ -362,14 +470,50 @@ export default function Generator() {
             <div className="card">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold">Subtitles</h3>
-                {step === 3 && !loading && (
-                  <button
-                    onClick={handleCreateVideo}
-                    className="btn-primary flex items-center gap-2"
-                  >
-                    {loading ? <Loader size={16} className="animate-spin" /> : <Play size={16} />}
-                    Create Video
-                  </button>
+                {step === 3 && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleGoBack}
+                      className="btn-secondary flex items-center gap-2"
+                      disabled={loading}
+                    >
+                      <ArrowLeft size={16} />
+                      Back
+                    </button>
+                    <button
+                      onClick={handleDeleteSubtitles}
+                      className="btn-secondary flex items-center gap-2 text-red-400 hover:bg-red-900"
+                      disabled={loading}
+                    >
+                      <Trash2 size={16} />
+                      Delete
+                    </button>
+                    <button
+                      onClick={handleRegenerateSubtitles}
+                      className="btn-secondary flex items-center gap-2"
+                      disabled={loading}
+                    >
+                      {loading ? <Loader size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                      Regenerate
+                    </button>
+                    <button
+                      onClick={handleCreateVideo}
+                      className="btn-primary flex items-center gap-2"
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <>
+                          <Loader size={16} className="animate-spin" />
+                          Creating Video...
+                        </>
+                      ) : (
+                        <>
+                          <Play size={16} />
+                          Create Video
+                        </>
+                      )}
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -387,7 +531,7 @@ export default function Generator() {
                         setEditSubtitles(newSubs)
                       }}
                       className="input flex-1 text-sm"
-                      disabled={step > 3}
+                      disabled={step > 3 || loading}
                     />
                   </div>
                 ))}
@@ -424,6 +568,20 @@ export default function Generator() {
               />
 
               <div className="flex gap-2">
+                <button
+                  onClick={handleGoBack}
+                  className="btn-secondary flex items-center gap-2"
+                >
+                  <ArrowLeft size={16} />
+                  Back
+                </button>
+                <button
+                  onClick={handleDeleteVideo}
+                  className="btn-secondary flex items-center gap-2 text-red-400 hover:bg-red-900"
+                >
+                  <Trash2 size={16} />
+                  Delete & Retry
+                </button>
                 <a
                   href={`${API_URL}/files/video/${videoData.video_path.split(/[\\/]/).pop()}`}
                   download
@@ -432,7 +590,8 @@ export default function Generator() {
                   <Download size={20} />
                   Download Video
                 </a>
-                <button onClick={handleReset} className="btn-secondary">
+                <button onClick={handleReset} className="btn-secondary flex items-center gap-2">
+                  <RefreshCw size={16} />
                   Create Another
                 </button>
               </div>
