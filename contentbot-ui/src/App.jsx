@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom'
-import { Home, Settings, FileVideo, Type, Image, BarChart3, Sparkles } from 'lucide-react'
+import { BrowserRouter as Router, Routes, Route, NavLink, useNavigate } from 'react-router-dom'
+import { Home, Settings, FileVideo, Type, Image, BarChart3, Sparkles, FolderOpen } from 'lucide-react'
 
 // Pages
 import Dashboard from './pages/Dashboard'
@@ -10,8 +10,11 @@ import MediaManager from './pages/MediaManager'
 import SubtitleConfig from './pages/SubtitleConfig'
 import SettingsPage from './pages/SettingsPage'
 import Analytics from './pages/Analytics'
+import Library from './pages/Library'
 
 function App() {
+  const [reusedContent, setReusedContent] = useState(null)
+
   return (
     <Router>
       <div className="flex h-screen bg-dark-bg">
@@ -34,6 +37,7 @@ function App() {
           <nav className="flex-1 p-4 space-y-1">
             <NavItem to="/" icon={<Home size={20} />} label="Dashboard" />
             <NavItem to="/generator" icon={<FileVideo size={20} />} label="Generator" />
+            <NavItem to="/library" icon={<FolderOpen size={20} />} label="Library" />
             <NavItem to="/templates" icon={<Type size={20} />} label="Templates" />
             <NavItem to="/media" icon={<Image size={20} />} label="Media" />
             <NavItem to="/subtitles" icon={<Type size={20} />} label="Subtitles" />
@@ -52,7 +56,23 @@ function App() {
         <main className="flex-1 overflow-auto">
           <Routes>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/generator" element={<Generator />} />
+            <Route
+              path="/generator"
+              element={<Generator reusedContent={reusedContent} onClearReused={() => setReusedContent(null)} />}
+            />
+            <Route
+              path="/library"
+              element={
+                <Library
+                  onReuseStory={(story) => {
+                    setReusedContent({ type: 'story', data: story })
+                  }}
+                  onReuseAudio={(audio) => {
+                    setReusedContent({ type: 'audio', data: audio })
+                  }}
+                />
+              }
+            />
             <Route path="/templates" element={<Templates />} />
             <Route path="/media" element={<MediaManager />} />
             <Route path="/subtitles" element={<SubtitleConfig />} />

@@ -414,6 +414,33 @@ def get_videos():
 
     return jsonify({'success': True, 'videos': videos})
 
+@app.route('/api/files/audios', methods=['GET'])
+def get_audios():
+    """List generated audio files"""
+    audios = []
+    for f in PENDING_DIR.glob("audio_*.mp3"):
+        stat = f.stat()
+
+        # Try to get duration
+        try:
+            from src.generation.tts_generator import TTSGenerator
+            tts = TTSGenerator()
+            duration = tts.get_audio_duration(str(f))
+        except:
+            duration = 0
+
+        audios.append({
+            'name': f.name,
+            'path': str(f),
+            'size': stat.st_size,
+            'modified': stat.st_mtime,
+            'duration': duration
+        })
+
+    audios.sort(key=lambda x: x['modified'], reverse=True)
+
+    return jsonify({'success': True, 'audios': audios})
+
 @app.route('/api/files/video/<filename>', methods=['GET'])
 def serve_video(filename):
     """Serve video file with proper streaming headers"""

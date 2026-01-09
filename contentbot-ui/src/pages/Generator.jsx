@@ -15,7 +15,7 @@ const VOICES = [
   { id: 'adam', name: 'Adam', desc: 'Deep, authoritative' },
 ]
 
-export default function Generator() {
+export default function Generator({ reusedContent, onClearReused }) {
   const [genres, setGenres] = useState([])
   const [backgrounds, setBackgrounds] = useState([])
 
@@ -41,6 +41,28 @@ export default function Generator() {
   useEffect(() => {
     loadConfig()
   }, [])
+
+  // Handle reused content from Library
+  useEffect(() => {
+    if (!reusedContent) return
+
+    if (reusedContent.type === 'story') {
+      const story = reusedContent.data
+      setStoryData(story)
+      setEditStory(story.story)
+      setSelectedGenre(story.genre || 'comedy')
+      setStep(1)
+      onClearReused && onClearReused()
+    } else if (reusedContent.type === 'audio') {
+      const audio = reusedContent.data
+      setAudioData({
+        audio_path: audio.path,
+        duration: audio.duration
+      })
+      setStep(2)
+      onClearReused && onClearReused()
+    }
+  }, [reusedContent])
 
   const loadConfig = async () => {
     try {

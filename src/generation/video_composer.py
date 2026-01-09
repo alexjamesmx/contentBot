@@ -286,29 +286,60 @@ class VideoComposer:
         safe_bottom_margin = 420
 
         for i, (start, end, text) in enumerate(subtitles):
-            txt_clip = TextClip(
-                text=text.upper(),
-                font=font_path,
-                font_size=72,
-                color=text_color,
-                stroke_color='black',
-                stroke_width=4,
-                size=(self.width - 200, None),
-                method='caption',
-                text_align='center',
-                horizontal_align='center',
-                vertical_align='bottom'
-            )
+            # Create text clip using PIL directly to avoid MoviePy stroke cropping bug
+            from PIL import Image, ImageDraw, ImageFont
+            import numpy as np
 
-            # Calculate Y position using safe zone margin
-            # Use max() to ensure we don't go below safe zone even if text is tall
+            # Font setup
+            pil_font = ImageFont.truetype(font_path, size=72)
+
+            # Measure text with stroke padding
+            stroke_w = 4
+            temp_img = Image.new('RGB', (1, 1))
+            temp_draw = ImageDraw.Draw(temp_img)
+            bbox = temp_draw.textbbox((0, 0), text.upper(), font=pil_font, stroke_width=stroke_w)
+            text_width = bbox[2] - bbox[0] + stroke_w * 2
+            text_height = bbox[3] - bbox[1] + stroke_w * 2
+
+            # Create image with padding
+            img_width = min(text_width + 20, self.width - 100)
+            img_height = text_height + 20
+
+            # Render text
+            img = Image.new('RGBA', (img_width, img_height), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+
+            # Center text in image
+            x = (img_width - text_width) // 2 + stroke_w
+            y = (img_height - text_height) // 2 + stroke_w
+
+            # Draw text with stroke
+            text_col = (255, 255, 0) if text_color == 'yellow' else (255, 255, 255)
+            draw.text((x, y), text.upper(), font=pil_font, fill=text_col,
+                     stroke_width=stroke_w, stroke_fill=(0, 0, 0))
+
+            # Convert to MoviePy clip
+            from moviepy import ImageClip
+            txt_clip = ImageClip(np.array(img))
+
+            # CRITICAL: Get actual text height BEFORE positioning
             text_height = txt_clip.h if txt_clip.h else 100
-            y_position = max(
-                self.height - safe_bottom_margin - text_height,
-                self.height * 0.6
-            )
 
-            print(f"[SUBTITLE] Text: '{text[:30]}...' | Height: {text_height}px | Y-pos: {y_position}px | Bottom margin: {self.height - y_position - text_height}px")
+            # SIMPLER APPROACH: Use tuple positioning (center, bottom) with negative offset
+            # This positions from the bottom edge instead of top
+            # Format: ('center', height - offset) where offset is how far from bottom
+            y_from_bottom = -safe_bottom_margin  # Negative = from bottom
+
+            # Alternative: Calculate exact pixel position to ensure no cutoff
+            # Add extra 50px padding just to be absolutely sure
+            y_position = self.height - safe_bottom_margin - text_height - 50
+
+            print(f"[SUBTITLE {i+1}] Text: '{text[:40]}'")
+            print(f"  Text height: {text_height}px")
+            print(f"  Y-position (from top): {y_position}px")
+            print(f"  Expected bottom edge: {y_position + text_height}px")
+            print(f"  Distance from bottom: {self.height - (y_position + text_height)}px")
+            print(f"  Safe? {'YES' if (self.height - (y_position + text_height)) >= safe_bottom_margin else 'NO - TOO LOW!'}")
 
             txt_clip = txt_clip.with_position(('center', y_position))
             txt_clip = txt_clip.with_start(start)

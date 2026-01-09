@@ -32,7 +32,8 @@ export default function VideoPlayer({ src, poster, className = '' }) {
   return (
     <div className={`video-container relative group ${className}`}>
       <video
-        className="w-full h-full rounded-lg bg-dark-bg"
+        className="w-full rounded-lg bg-dark-bg"
+        style={{ objectFit: 'contain' }}
         poster={poster}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
