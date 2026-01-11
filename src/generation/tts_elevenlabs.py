@@ -110,14 +110,38 @@ class ElevenLabsTTS:
         text: str,
         voice: str = "mark",
         output_path: Optional[str] = None,
-        stability: float = 0.5,
+        stability: float = 0.45,
         similarity_boost: float = 0.75,
-        style: float = 0.0,
-        model_id: str = "eleven_multilingual_v2",
+        style: float = 0.3,
+        model_id: str = "eleven_turbo_v2_5",
         output_format: str = "mp3_44100_128",
         optimize_streaming_latency: str = "0",
+        add_emotion: bool = True
     ) -> str:
-        """Generate audio using ElevenLabs v1.x streaming API with smart caching."""
+        """Generate audio using ElevenLabs with optimal settings for viral storytelling.
+
+        Args:
+            text: Story text to convert
+            voice: Voice ID (mark, snap, peter, viraj, rachel, adam)
+            output_path: Optional output path (uses cache by default)
+            stability: 0.45 optimal for stories (prevents monotony)
+            similarity_boost: 0.75 recommended
+            style: 0.3 for emotional stories, 0.0 for flat narration
+            model_id: eleven_turbo_v2_5 best for storytelling with emotion
+            output_format: Audio quality
+            optimize_streaming_latency: Streaming optimization
+            add_emotion: Automatically add pauses and emphasis (recommended)
+
+        Returns:
+            Path to generated audio file
+        """
+        # Add emotional markers for more natural delivery (2025 best practice)
+        if add_emotion:
+            from src.generation.story_generator import StoryGenerator
+            original_text = text
+            text = StoryGenerator.add_emotional_markers(text)
+            if text != original_text:
+                print("[EMOTION] Added natural pauses and emphasis for TTS")
         if voice not in self.VIRAL_VOICES:
             print(f"[WARNING] Unknown voice '{voice}', using 'mark'")
             voice = "mark"

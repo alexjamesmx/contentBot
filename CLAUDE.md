@@ -1,380 +1,371 @@
-# ContentBot - Viral Reddit Story Video Generator
+# Who are we 
+I'm a startup founder product engineer building a complete AI-powered content creation studio at scale. We care about automation, speed, and real-world results.
 
-**Mission**: Build a profitable automated system generating viral TikTok/YouTube Shorts content using Reddit stories + gameplay backgrounds (Subway Surfer/Minecraft parkour style).
+# ContentBot - AI Content Creation Studio
 
-**Status**: MVP - Basic pipeline works, fixing video generation bugs
+**Mission**: Build a complete, professional AI-powered video creation studio for generating viral TikTok/YouTube Shorts automatically.
 
----
+**Product Vision**: Enable creators to produce high-quality, monetizable video content at scale - from idea to final video in under 60 seconds.
 
-## Market Research
-
-### The Opportunity
-
-**Proven Business Model**:
-- Reddit story videos get **millions of views** on TikTok/YT Shorts
-- Faceless channels earning **$1,000+/month** with automation
-- Low competition in 2025, high demand for "brainrot" content
-
-**Why This Works**:
-1. **Dual-stimulus content** - Engaging visuals (parkour) + dramatic stories = hooks attention
-2. **Endless content supply** - Reddit generates thousands of viral stories daily
-3. **TikTok Creator Rewards** - $0.50-$5 per 1000 views (vs old $0.02-$0.04)
-4. **YouTube Shorts Fund** - Additional monetization layer
-5. **Proven retention** - Subway Surfer/Minecraft keeps viewers watching
-
-### Monetization Paths
-
-**Primary**:
-- TikTok Creator Rewards Program (10K followers, 100K views/30d, 1min+ videos)
-- YouTube Partner Program (Shorts Fund)
-
-**Secondary**:
-- Sponsorships ($200+ per shoutout)
-- Affiliate marketing in comments
-- Selling shoutouts/logo placements
-
-**Key Requirement**: Must be **original content** - can't just scrape Reddit screenshots. Need AI-generated stories or heavy transformative editing.
-
-### Competition Analysis
-
-**Existing GitHub Solutions**:
-- [FullyAutomatedRedditVideoMakerBot](https://github.com/raga70/FullyAutomatedRedditVideoMakerBot) - Auto-posts to TikTok/IG/YT
-- [RedditVideoMakerBot](https://github.com/elebumm/RedditVideoMakerBot) - 6K+ stars, most popular
-- [RedditReels](https://github.com/vvinniev34/RedditReels) - Full automation with uploaders
-
-**Our Advantage**:
-- AI-generated stories (not scraped) = fully original content
-- Premium ElevenLabs voices = better retention
-- Smart caching = 90% cost reduction
-- Modern tech stack (MoviePy 2.x, Groq AI)
-
-### Content Strategy
-
-**Best Subreddits** (for inspiration, not scraping):
-- r/AmItheAsshole - Controversial dilemmas
-- r/ProRevenge - Justice stories
-- r/TIFU - Embarrassing moments
-- r/relationship_advice - Drama
-
-**Viral Font Research**:
-- **#1: Montserrat Bold** (used in 60% of viral videos)
-- Font size: 36-40px
-- Position: Bottom third (280px from bottom)
-- Style: Yellow text + black stroke = max visibility
-- Background: 60% opacity black for readability
-
-**Optimal Video Format**:
-- Length: 1-3 minutes (TikTok Creativity Program requirement)
-- Resolution: 1080x1920 (9:16 vertical)
-- FPS: 30 (smooth on mobile)
-- Hook: First 3 seconds critical
-- Retention: Background gameplay essential
+**Status**: ✅ Core Pipeline Complete | 🚧 Building Full Studio Features (Jan 2026)
 
 ---
 
-## Current System Architecture
+## 🎯 Core Principle: Purpose-Driven Development
+
+### CRITICAL RULES FOR AI (Claude)
+
+When making ANY code change, modification, or addition:
+
+1. **Every change must serve the complete studio vision**
+   - Does this help creators make better content?
+   - Does this enable automation/scale?
+   - Does this improve monetization potential?
+   - If NO to all three → don't implement it
+
+2. **Zero waste policy**
+   - No unnecessary comments (code should be self-documenting)
+   - No placeholder TODOs (implement or don't)
+   - No "nice to have" features (only essential)
+   - Minimal token usage in all files
+
+3. **Production-first mindset**
+   - Every feature must work end-to-end
+   - Test immediately after implementation
+   - No breaking changes to existing pipeline
+   - Fail fast with clear error messages
+
+4. **Studio integration requirement**
+   - New features must integrate with existing UI/API
+   - Must follow current design patterns
+   - Must use existing infrastructure (Flask, React, MoviePy)
+   - No isolated features that don't connect
+
+### Development Philosophy
+
+**We are building a startup product for real users (creators making money).**
+
+This means:
+- **Functionality > Features** - Working basic feature beats broken advanced feature
+- **Speed > Perfection** - Ship fast, iterate based on user feedback
+- **Integration > Innovation** - Connect existing tools well rather than invent new ones
+- **Monetization > Metrics** - Track what makes users money, not vanity metrics
+
+---
+
+## 🏗️ System Architecture
+
+### Current Pipeline (MVP - Complete)
 
 ```
-Story Generation (Groq AI - llama-3.3-70b)
-    ↓
-Audio Generation (ElevenLabs Premium TTS w/ caching)
-    ↓
-Subtitle Sync (2-word chunks, viral style)
-    ↓
-Video Composition (MoviePy 2.x)
-    ↓
-Output: 1080x1920 MP4 ready for upload
+1. Story Generation → Groq AI (llama-3.3-70b, human-like prompts)
+2. Audio Generation → ElevenLabs TTS (premium voices, smart caching)
+3. Subtitle Sync → 4-word chunks, viral positioning
+4. Video Composition → MoviePy 2.x (1080x1920, 30fps)
+5. Output → MP4 ready for TikTok/YouTube Shorts
 ```
 
 ### Tech Stack
 
-**Backend**:
-- Python 3.11+
-- Flask API
-- Groq AI (story generation)
-- ElevenLabs API (premium voice)
-- MoviePy 2.x (video rendering)
+**Backend**: Python 3.11+ | Flask API | Groq AI | ElevenLabs | MoviePy 2.x
+**Frontend**: React + Vite | TailwindCSS | Axios
+**Storage**: Local filesystem | Smart caching (audio + metadata)
 
-**Frontend**:
-- React + Vite
-- TailwindCSS
-- Axios for API calls
-
-**Storage**:
-- Local file system
-- Smart caching (audio + metadata)
-
-### File Structure
+### File Structure (Essential Paths)
 
 ```
-contentBot/
-├── app.py                      # Flask API server
-├── src/
-│   ├── generation/
-│   │   ├── story_generator.py     # AI story generation
-│   │   ├── story_templates.py     # Genre templates (comedy, terror, AITA, etc)
-│   │   ├── tts_elevenlabs.py      # Premium TTS with caching
-│   │   ├── tts_generator.py       # Free gTTS fallback
-│   │   ├── subtitle_generator.py  # 2-word viral subtitles
-│   │   └── video_composer.py      # Final render
-│   └── utils/
-│       ├── config.py               # Environment config
-│       └── metadata.py             # Video metadata + hashtags
-├── assets/
-│   ├── backgrounds/               # Gameplay videos (Subway Surfer, Minecraft)
-│   └── fonts/                     # Montserrat-Bold.ttf (viral font)
-├── output/
-│   ├── pending_review/            # Generated videos
-│   └── stories/                   # Story library (JSON)
-└── cache/
-    └── elevenlabs/                # Cached audio (saves $$)
+app.py                               # Flask API server
+src/generation/
+  ├── story_generator.py            # AI story generation (5 genres)
+  ├── story_templates.py            # Genre-specific prompts
+  ├── tts_elevenlabs.py             # Premium TTS with caching
+  ├── subtitle_generator.py         # 4-word viral subtitles
+  └── video_composer.py             # Final render pipeline
+contentbot-ui/src/pages/            # React UI components
+assets/backgrounds/                  # Gameplay videos
+output/pending_review/              # Generated videos
+cache/elevenlabs/                   # Cached audio (cost savings)
 ```
 
 ---
 
-## Known Issues & Fixes Needed
+## 💰 Monetization Strategy (TikTok Creator Rewards 2025)
 
-### CRITICAL - Video Generation Failing
+### Requirements Checklist
+- ✅ **60+ second videos** (system defaults to 75s)
+- ✅ **Original content** (AI-generated = original)
+- ✅ **Human-like quality** (anti-AI detection prompts)
+- ⏳ **10,000 followers** (requires posting consistency)
+- ⏳ **100K views/30 days** (requires 2x daily posts)
 
-**Symptoms**:
-- Subtitles cut off at bottom of screen
-- Video render crashes/hangs
+### Revenue Potential
+- **Conservative**: $450/month (600K views at $0.75 RPM)
+- **Moderate**: $1,200/month (1.2M views at $1.00 RPM)
+- **High-retention**: $1,800/month (1.2M views at $1.50 RPM + bonus)
 
-**Root Cause Analysis**:
-- ✅ FIXED: Subtitle positioning at 65% height caused cutoff
-- ✅ FIXED: Font size too large (80px → 72px)
-- ✅ FIXED: Margins too small (140px → 200px)
-- NEW: Position now calculated from bottom: `height - txt_height - 280px`
-
-**Testing Required**:
-- [ ] Generate 30s test video
-- [ ] Verify subtitles visible on mobile preview
-- [ ] Check Montserrat-Bold font loads correctly
-- [ ] Confirm ElevenLabs audio syncs with video
-
-### Subtitle Optimization
-
-**Current Settings** (video_composer.py:268-286):
-```python
-font_size=72          # Optimal for mobile
-stroke_width=4        # Thick black outline
-size=(width-200, None) # Safe margins
-y_position = height - txt_height - 280  # Bottom third positioning
-```
-
-**Research-Based Best Practices**:
-- Yellow text (current) = proven viral color
-- Montserrat Bold (current) = #1 font for 2025
-- 2-word chunks (current) = optimal retention
-- Position: Bottom third, never center (blocks face/action)
+### Content Strategy
+- Post 2x daily, 3+ hours apart
+- Best times: 7-9pm, 12-2pm, 6-8am EST
+- Cross-post: TikTok + YouTube Shorts + Instagram Reels
+- Engage with comments (algorithm boost)
 
 ---
 
-## Development Roadmap
+## 🎬 Studio Features (Current + Roadmap)
 
-### Phase 1: MVP Working (Current)
-- [x] AI story generation (Groq)
-- [x] Premium TTS (ElevenLabs + caching)
-- [x] Subtitle generation (2-word chunks)
-- [x] Video composition pipeline
-- [x] Web UI for generation
-- [x] Story library
-- [ ] **Fix video generation bugs** ← YOU ARE HERE
-- [ ] End-to-end test: Story → Video → Upload
+### ✅ Phase 1: Core Pipeline (COMPLETE)
+- [x] AI story generation (5 genres: comedy, terror, AITA, gen-z, relationship)
+- [x] Premium TTS with emotion (ElevenLabs optimized)
+- [x] Viral subtitle system (4-word chunks, yellow text, Montserrat Bold)
+- [x] Video composition (background + audio + subtitles)
+- [x] Web UI (step-by-step workflow)
+- [x] Story library (save/reuse stories)
+- [x] Analytics dashboard (monetization projections)
 
-### Phase 2: Viral Optimization
-- [ ] Add Montserrat-Bold font auto-download
-- [ ] Implement word-by-word subtitle highlighting (trending in 2025)
-- [ ] Add background music layer (copyright-free)
-- [ ] Batch generation (10 videos at once)
-- [ ] A/B test different fonts/colors
-- [ ] Auto-thumbnail generation
+### 🚧 Phase 2: Studio Automation (IN PROGRESS)
+- [x] Batch mode (generate 5-20 videos sequentially)
+- [ ] **Subtitle Editor** (live preview, custom styling per video)
+- [ ] Background music layer (copyright-free tracks)
+- [ ] Hook A/B testing (5 variations per story)
+- [ ] Auto-upload integration (TikTok/YouTube APIs)
 
-### Phase 3: Full Automation
-- [ ] Auto-upload to TikTok (pyppeteer/selenium)
-- [ ] Auto-upload to YouTube Shorts (YouTube Data API)
-- [ ] Auto-schedule posts (best times: 7-9pm, 12-2pm, 6-8am EST)
-- [ ] Performance analytics dashboard
-- [ ] Auto-hashtag optimization based on trends
-
-### Phase 4: Scale & Monetization
+### 📋 Phase 3: Scale & Optimization (PLANNED)
 - [ ] Multi-account management
-- [ ] Hook testing (A/B test 5 hooks per story)
+- [ ] Advanced analytics (retention heatmaps, best hooks)
+- [ ] Template marketplace (import/export genre prompts)
 - [ ] Voice cloning (custom brand voice)
-- [ ] Thumbnail A/B testing
-- [ ] Sponsorship CRM
-- [ ] Revenue tracking dashboard
+- [ ] Performance tracking (link TikTok/YouTube metrics)
 
 ---
 
-## Critical Guidelines for Claude
+## 🎨 Viral Optimization (2025 Research-Backed)
 
-### Code Style
-- **Zero unnecessary comments** - Code should be self-documenting
-- **Minimal tokens** - Every line must add value
-- **Production-ready** - No TODOs, no placeholders
-- **Error handling** - Fail fast with clear messages
+### Story Generation
+- **Target**: 150-220 words (60-90s duration at 2.5 words/sec)
+- **Style**: Conversational, filler words ("like", "literally"), sentence fragments
+- **Emotion**: CAPS for emphasis, "..." for pauses
+- **Hook**: First sentence must grab attention (question, bold statement)
+- **Anti-AI**: Avoid "delve", "utilize", "moreover" (AI tells)
 
-### When Editing Code
-1. **Read the entire file first** - Understand context
-2. **Fix root cause, not symptoms** - Don't patch
-3. **Test immediately** - Run `python -m py_compile` after edits
-4. **Verify imports** - Check all dependencies load
-5. **No breaking changes** - API must stay compatible
+### Voice Generation (ElevenLabs Settings)
+```python
+stability = 0.45           # Natural variation (not robotic)
+similarity_boost = 0.75    # Match target speaker
+style = 0.3                # Emotional delivery
+model = "eleven_turbo_v2_5"  # Best for storytelling
+use_speaker_boost = True   # Enhanced emotion
+```
 
-### Video Generation Rules
-- **Subtitles MUST be readable on mobile** - Test on 5.5" screen mentally
-- **Font MUST exist** - Fallback to Impact.ttf (Windows) if Montserrat missing
-- **Positioning from bottom** - Never use percentage heights
-- **Audio MUST sync** - 2-word chunks = duration / word_count
-- **Background MUST loop** - Handle videos shorter than audio
+### Subtitle System
+- **Words per chunk**: 4 (proven retention sweet spot)
+- **Font**: Montserrat Bold (60% of viral videos use this)
+- **Color**: Yellow (#FFFF00) + Black stroke (#000000, 3px)
+- **Position**: Bottom third (420px margin from bottom)
+- **Emphasis**: Preserve CAPS for emotional words
 
-### Performance Targets
+### Video Format
+- **Resolution**: 1080x1920 (9:16 vertical)
+- **FPS**: 30 (mobile-optimized)
+- **Duration**: 60-90s (monetization + retention sweet spot)
+- **Background**: Subway Surfer/Minecraft parkour (dual-stimulus)
+
+---
+
+## 🛠️ Development Guidelines for Claude
+
+### Code Modification Rules
+
+**Before editing ANY file:**
+1. Read the entire file first (understand context)
+2. Identify root cause, not symptoms
+3. Ensure change aligns with studio vision
+4. Test immediately after (`python -m py_compile <file>.py`)
+
+**When adding features:**
+1. Start with backend API endpoint (if needed)
+2. Implement frontend UI component
+3. Connect with existing pipeline
+4. Test end-to-end workflow
+5. Update this file (CLAUDE.md) if architecture changes
+
+**Performance targets:**
 - Story generation: <5s
 - TTS generation: <8s (or instant if cached)
 - Video render: <30s for 60s video
 - Total pipeline: <45s end-to-end
 
-### Business Priorities
-1. **Functionality first** - Must generate working videos
-2. **Quality second** - Videos must look professional
-3. **Speed third** - Optimize after it works
-4. **Features last** - No new features until core works
+### Testing Requirements
+
+**MANDATORY after ANY code change:**
+```bash
+# 1. Syntax check
+python -m py_compile <modified_file>.py
+
+# 2. Run the actual functionality
+# For generation: test full pipeline via UI
+# For API: test endpoint with curl/Postman
+
+# 3. Verify output quality
+# For videos: check subtitles visible, audio synced
+```
+
+### What NOT to Do
+- ❌ Create documentation files (update CLAUDE.md or README.md only)
+- ❌ Add features not requested by user
+- ❌ Implement "TODO" placeholders (finish it or skip it)
+- ❌ Break existing video generation pipeline
+- ❌ Add unnecessary abstractions/helpers for one-time use
+- ❌ Use emojis in code (only in docs if requested)
 
 ---
 
-## Quick Commands
+## 📚 Documentation Structure
 
-### Start Backend
+**CLAUDE.md** (this file): AI instructions, studio vision, development rules
+**README.md**: User-facing quick start, setup instructions, key features
+**PROJECT.md**: Technical reference (API endpoints, troubleshooting)
+
+All other docs are synthesized into these three files.
+
+---
+
+## 🚀 Quick Start Commands
+
 ```bash
-python app.py
-# Backend: http://localhost:5000
-```
+# Start Backend
+python app.py  # http://localhost:5000
 
-### Start Frontend
-```bash
-cd contentbot-ui && npm run dev
-# Frontend: http://localhost:5173
-```
+# Start Frontend
+cd contentbot-ui && npm run dev  # http://localhost:5173
 
-### Test Video Generation (CLI)
-```bash
-python -c "
-from src.generation.story_generator import StoryGenerator
-from src.generation.tts_elevenlabs import ElevenLabsTTS
-from src.generation.subtitle_generator import SubtitleGenerator
-from src.generation.video_composer import VideoComposer
-from src.utils.config import ELEVENLABS_API_KEY
-
-# Generate story
-gen = StoryGenerator()
-story = gen.generate_story(genre='comedy')
-print(f'Story: {story[\"story\"][:100]}...')
-
-# Generate audio
-tts = ElevenLabsTTS(ELEVENLABS_API_KEY)
-audio_path = tts.generate_audio(story['story'], voice='mark')
-print(f'Audio: {audio_path}')
-
-# Generate subtitles
-from moviepy import AudioFileClip
-audio = AudioFileClip(audio_path)
-duration = audio.duration
-audio.close()
-
-sub_gen = SubtitleGenerator(words_per_chunk=2)
-subs = sub_gen.generate_subtitles(story['story'], duration)
-print(f'Subtitles: {len(subs)} chunks')
-
-# Create video
-composer = VideoComposer()
-video_path = composer.create_video(
-    audio_path=audio_path,
-    subtitles=subs,
-    genre='comedy'
-)
-print(f'Video: {video_path}')
-"
-```
-
-### Check Subtitle Font
-```bash
-python -c "from pathlib import Path; print('Montserrat:', (Path('assets/fonts/Montserrat-Black.ttf').exists()))"
+# Quick Test (verify optimizations)
+python -c "from src.generation.subtitle_generator import SubtitleGenerator; sg = SubtitleGenerator(); print(f'Words per chunk: {sg.words_per_chunk}')"
+# Expected: words_per_chunk=4
 ```
 
 ---
 
-## Monetization Checklist
+## 🎯 Current Development Focus
 
-### TikTok Creator Rewards Requirements
-- [ ] 10,000 followers
-- [ ] 100,000 views in last 30 days
-- [ ] Videos 1+ minutes long
-- [ ] Original content (AI-generated = original ✓)
-- [ ] Account in US/UK/Germany/Japan/Korea/France/Brazil
-- [ ] 18+ years old
+### Immediate Priority: Functional Subtitle Editor
 
-### Content Strategy
-- [ ] Post 2x daily (3+ hours apart)
-- [ ] Best times: 7-9pm, 12-2pm, 6-8am EST
-- [ ] Use trending sounds (add background music layer)
-- [ ] Optimize hashtags: #fyp #redditstories #storytime
-- [ ] Reply to comments (engagement = algorithm boost)
-- [ ] Cross-post to YouTube Shorts + Instagram Reels
+**Goal**: Enable users to customize subtitle styling and preview in real-time
 
-### Revenue Optimization
-- [ ] Add email to bio for sponsors
-- [ ] Track RPM (should be $0.50-$5 per 1000 views)
-- [ ] Test different genres (AITA > Comedy for engagement)
-- [ ] A/B test hooks (first 3 seconds critical)
-- [ ] Batch content (film 30 videos, post over 15 days)
+**Requirements**:
+1. Backend endpoint: `POST /api/subtitles/config` (save subtitle settings)
+2. Backend endpoint: `GET /api/subtitles/config` (load saved settings)
+3. Frontend: Make SubtitleConfig.jsx functional (currently just UI mockup)
+4. Integration: Apply custom settings in video_composer.py
+5. Persistence: Store config in JSON file (assets/subtitle_config.json)
+
+**Implementation Notes**:
+- Use existing video_composer.py subtitle rendering logic
+- Allow per-video override or global default
+- Preview must update in real-time (no backend calls for preview)
+- Save should persist to filesystem (simple JSON storage)
+
+### Next Priority: Background Music Layer
+
+**Goal**: Add optional background music to videos (copyright-free)
+
+**Requirements**:
+1. Music library (assets/music/)
+2. Backend endpoint: `POST /api/music/upload`
+3. Generator UI: "Add Background Music" toggle
+4. Video composer: Mix audio (story voice + music at 20% volume)
 
 ---
 
-## Research Sources
+## 🔧 Known Issues & Fixes
+
+### ✅ Completed Optimizations
+- Story generation: Human-like authenticity (anti-AI detection)
+- Duration targeting: 60-90s (monetization requirement)
+- Subtitle optimization: 4-word chunks (retention)
+- Voice emotion: Natural pauses and emphasis
+- UI defaults: 75s duration, 4 words, ElevenLabs on
+
+### 🐛 Current Bugs
+- None reported (system stable)
+
+### 💡 Future Enhancements
+- Parallel batch processing (currently sequential)
+- Resume failed batches
+- Auto-upload to TikTok/YouTube
+- Email notifications when batch completes
+
+---
+
+## 📊 Success Metrics
+
+**Product success = User monetization success**
+
+Track:
+- Videos generated per day (goal: 10+)
+- Monetizable videos % (60s+, should be 100%)
+- Average video quality (manual review)
+- Time from idea to final video (goal: <60s)
+
+Don't track (vanity metrics):
+- Code coverage
+- Number of features
+- Lines of code
+
+---
+
+## 💼 Business Context
+
+**Target User**: Faceless content creators (TikTok/YouTube Shorts)
+**User Goal**: Build audience, reach Creator Rewards, earn $1K+/month
+**Our Goal**: Enable users to produce 60+ videos/month at professional quality
+
+**Revenue Model** (future):
+- Freemium: 10 videos/month free
+- Pro: $19/month for unlimited + premium voices
+- Agency: $99/month for multi-account + white-label
+
+**Competitive Advantage**:
+- AI-generated stories (100% original, not scraped)
+- Smart caching (90% cost reduction vs competitors)
+- Modern tech (MoviePy 2.x, Groq AI, ElevenLabs)
+- Research-backed viral optimizations (2025 data)
+
+---
+
+## 📖 Key Research Sources
 
 **Monetization**:
-- [TikTok Creator Rewards Program Requirements](https://www.tiktok.com/creator-academy/en/article/creator-rewards-program)
-- [TikTok Creativity Program Payout 2025](https://www.shortsgenerator.ai/blog/tiktok-creativity-program-beta-payout/)
-- [How to Make Money with Reddit Story Videos](https://dicloak.com/blog-detail/how-to-make-money-with-reddit-story-tiktok-videos-tiktok-creativity-program)
+- TikTok Creator Rewards Program official docs
+- TikTok Creativity Program Beta Payout 2025
+- Reddit story channel revenue reports
 
-**Viral Fonts & Styling**:
-- [Best Fonts for TikTok Subtitles 2025](https://sendshort.ai/guides/tiktok-font/)
-- [Montserrat: The Most Popular Subtitle Font](https://www.submagic.co/blog/best-font-for-subtitle)
-- [Caption Style Guide for Viral Videos](https://www.capcut.com/resource/caption-style/)
+**Viral Content**:
+- Best Fonts for TikTok Subtitles 2025 (Montserrat dominance)
+- Caption Style Guide for Viral Videos
+- Subtitle retention studies (3-5 words optimal)
 
 **Automation**:
-- [FullyAutomatedRedditVideoMakerBot](https://github.com/raga70/FullyAutomatedRedditVideoMakerBot)
-- [RedditVideoMakerBot (6K+ stars)](https://github.com/elebumm/RedditVideoMakerBot)
-- [Thread-2-Tok: Reddit to TikTok Automation](https://github.com/3milyfz/thread-2-tok)
-
-**Business Models**:
-- [AI Reddit Story Video Generator](https://www.revid.ai/tools/ai-reddit-story-video-generator) - Pricing: $19-60/month
-- [Short AI Pricing](https://www.short.ai/minecraft-parkour-video) - $19/month for 40 videos
+- FullyAutomatedRedditVideoMakerBot (GitHub)
+- RedditVideoMakerBot (6K+ stars, most popular)
+- AI voice emotion optimization (ElevenLabs docs)
 
 ---
 
-## Next Actions
+## 🎓 Studio Philosophy Summary
 
-1. **Test video generation** - Run CLI command above, verify output
-2. **Fix any render errors** - Check MoviePy logs, font loading
-3. **Verify subtitle positioning** - Open video, check bottom text visible
-4. **Download Montserrat-Bold** - If missing, auto-download or use Impact fallback
-5. **End-to-end test** - Generate 5 videos, check quality on mobile
-6. **Deploy to production** - Once stable, set up auto-upload pipeline
+**We are building professional creator tools, not toys.**
 
-**Current Blocker**: Video generation failing - subtitles fixed, need full test.
+Every feature must:
+1. ✅ Help creators make better content
+2. ✅ Enable automation/scale
+3. ✅ Improve monetization potential
 
-**Partner Mode**: I'm your technical co-founder. My job: ship working code fast, zero fluff. Your job: define what "working" means. Let's print money. 💰
+If a feature doesn't clearly serve one of these, don't build it.
+
+**Development mantra**: Ship working features fast → Get user feedback → Iterate
 
 ---
 
-## Testing Requirement
-
-**MANDATORY**: After implementing or modifying ANY code:
-1. Run syntax check: `python -m py_compile <file>.py`
-2. Test the actual functionality (run the code)
-3. Verify output meets expectations
-4. For video generation: ensure video plays and subtitles are visible
-
-**DO NOT** submit code without testing it first.
+**Last Updated**: January 10, 2026
+**System Version**: 2.0 - Full Studio Evolution
+**Current Phase**: Expanding from MVP to complete creation studio

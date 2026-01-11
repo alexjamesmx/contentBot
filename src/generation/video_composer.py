@@ -177,13 +177,17 @@ class VideoComposer:
                 fps=self.fps,
                 codec='libx264',
                 audio_codec='aac',
+                audio_bitrate='192k',
                 temp_audiofile=temp_audio,
                 remove_temp=True,
                 logger=logger,
-                preset='medium',
-                bitrate='3000k',
+                preset='slow',
+                bitrate='8000k',
                 ffmpeg_params=[
                     '-pix_fmt', 'yuv420p',
+                    '-profile:v', 'high',
+                    '-level', '4.2',
+                    '-crf', '18',
                     '-movflags', '+faststart'
                 ]
             )

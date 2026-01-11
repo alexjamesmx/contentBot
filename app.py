@@ -17,6 +17,11 @@ from src.utils.config import (
     STORY_TEMPERATURE, STORY_MAX_TOKENS, PROJECT_ROOT
 )
 from src.utils.metadata import VideoMetadata
+from src.utils.job_tracker import (
+    create_job, get_job, update_job, delete_job,
+    list_active_jobs, list_user_jobs,
+    JobStatus, JobType
+)
 
 app = Flask(__name__)
 CORS(app)
@@ -134,13 +139,20 @@ def update_template(genre):
 
 @app.route('/api/generate/story', methods=['POST'])
 def generate_story():
-    """Generate a story"""
+    """Generate a story with job tracking"""
     data = request.json
     genre = data.get('genre', 'comedy')
     custom_prompt = data.get('custom_prompt', None)
     target_duration = data.get('target_duration', 60)
 
+    # Create job
+    import time
+    job_id = f"story_{int(time.time() * 1000)}"
+    job = create_job(job_id, JobType.STORY, metadata={'genre': genre, 'target_duration': target_duration})
+
     try:
+        update_job(job_id, status=JobStatus.RUNNING, progress=10)
+
         story_gen = StoryGenerator()
 
         if custom_prompt:
@@ -148,11 +160,17 @@ def generate_story():
         else:
             story = story_gen.generate_story(genre=genre, target_duration=target_duration)
 
+        update_job(job_id, progress=80)
+
         # Validate
         is_valid, issues = story_gen.validate_story(story)
 
+        # Mark complete
+        update_job(job_id, status=JobStatus.COMPLETED, progress=100, result=story)
+
         return jsonify({
             'success': True,
+            'job_id': job_id,
             'story': story,
             'validation': {
                 'is_valid': is_valid,
@@ -160,11 +178,12 @@ def generate_story():
             }
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        update_job(job_id, status=JobStatus.FAILED, error=str(e))
+        return jsonify({'success': False, 'error': str(e), 'job_id': job_id}), 500
 
 @app.route('/api/generate/audio', methods=['POST'])
 def generate_audio():
-    """Generate TTS audio"""
+    """Generate TTS audio with job tracking"""
     data = request.json
     text = data.get('text')
     voice = data.get('voice', 'default')
@@ -176,10 +195,19 @@ def generate_audio():
     if not text:
         return jsonify({'success': False, 'error': 'Text is required'}), 400
 
+    # Create job
+    import time
+    job_id = f"audio_{int(time.time() * 1000)}"
+    job = create_job(job_id, JobType.AUDIO, metadata={'voice': voice, 'use_elevenlabs': use_elevenlabs})
+
     try:
+        update_job(job_id, status=JobStatus.RUNNING, progress=20)
+
         # Generate unique filename based on text + voice hash
         audio_hash = abs(hash(text + voice))
         output_path = PENDING_DIR / f"audio_{audio_hash}.mp3"
+
+        update_job(job_id, progress=40)
 
         if use_elevenlabs and ELEVENLABS_API_KEY:
             tts = ElevenLabsTTS(ELEVENLABS_API_KEY)
@@ -193,17 +221,22 @@ def generate_audio():
             audio_path = tts.generate_audio(text, output_path=str(output_path))
             duration = tts.get_audio_duration(audio_path)
 
+        # Mark complete
+        update_job(job_id, status=JobStatus.COMPLETED, progress=100, result={'audio_path': str(audio_path), 'duration': duration})
+
         return jsonify({
             'success': True,
+            'job_id': job_id,
             'audio_path': str(audio_path),
             'duration': duration
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        update_job(job_id, status=JobStatus.FAILED, error=str(e))
+        return jsonify({'success': False, 'error': str(e), 'job_id': job_id}), 500
 
 @app.route('/api/generate/subtitles', methods=['POST'])
 def generate_subtitles():
-    """Generate subtitles"""
+    """Generate subtitles with job tracking"""
     data = request.json
     text = data.get('text')
     duration = data.get('duration')
@@ -212,14 +245,63 @@ def generate_subtitles():
     if not text or not duration:
         return jsonify({'success': False, 'error': 'Text and duration required'}), 400
 
+    # Create job
+    import time
+    job_id = f"subs_{int(time.time() * 1000)}"
+    job = create_job(job_id, JobType.SUBTITLES, metadata={'words_per_chunk': words_per_chunk})
+
     try:
+        update_job(job_id, status=JobStatus.RUNNING, progress=30)
+
         sub_gen = SubtitleGenerator(words_per_chunk=words_per_chunk)
         subtitles = sub_gen.generate_subtitles(text, duration)
 
+        subtitle_dicts = [{'start': s, 'end': e, 'text': t} for s, e, t in subtitles]
+
+        # Mark complete
+        update_job(job_id, status=JobStatus.COMPLETED, progress=100, result={'subtitles': subtitle_dicts})
+
         return jsonify({
             'success': True,
-            'subtitles': [{'start': s, 'end': e, 'text': t} for s, e, t in subtitles]
+            'job_id': job_id,
+            'subtitles': subtitle_dicts
         })
+    except Exception as e:
+        update_job(job_id, status=JobStatus.FAILED, error=str(e))
+        return jsonify({'success': False, 'error': str(e), 'job_id': job_id}), 500
+
+SUBTITLE_CONFIG_FILE = PROJECT_ROOT / "assets" / "subtitle_config.json"
+
+@app.route('/api/subtitles/config', methods=['GET'])
+def get_subtitle_config():
+    """Get saved subtitle configuration"""
+    try:
+        if SUBTITLE_CONFIG_FILE.exists():
+            with open(SUBTITLE_CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+        else:
+            config = {
+                'fontSize': 80,
+                'fontColor': '#FFFF00',
+                'strokeColor': '#000000',
+                'strokeWidth': 3,
+                'wordsPerChunk': 4,
+                'position': 'bottom',
+                'fontFamily': 'Montserrat-Bold'
+            }
+        return jsonify({'success': True, 'config': config})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/subtitles/config', methods=['POST'])
+def save_subtitle_config():
+    """Save subtitle configuration"""
+    try:
+        config = request.json
+        SUBTITLE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(SUBTITLE_CONFIG_FILE, 'w') as f:
+            json.dump(config, f, indent=2)
+        return jsonify({'success': True, 'message': 'Configuration saved'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -231,7 +313,7 @@ def get_video_progress(video_id):
 
 @app.route('/api/generate/video', methods=['POST'])
 def generate_video():
-    """Generate complete video"""
+    """Generate complete video with job tracking"""
     data = request.json
 
     # Extract parameters
@@ -244,8 +326,13 @@ def generate_video():
     if not story_text or not audio_path:
         return jsonify({'success': False, 'error': 'Story text and audio required'}), 400
 
-    # Generate video ID for progress tracking
-    video_id = str(abs(hash(story_text)))
+    # Create job
+    import time
+    job_id = f"video_{int(time.time() * 1000)}"
+    job = create_job(job_id, JobType.VIDEO, metadata={'genre': genre, 'background': background_video})
+
+    # Legacy progress dict (keep for backwards compat)
+    video_id = job_id
     video_progress[video_id] = {'progress': 0, 'status': 'Starting...'}
 
     try:
@@ -291,11 +378,12 @@ def generate_video():
         print(f"[VIDEO] Calling video composer...")
         video_progress[video_id] = {'progress': 20, 'status': 'Starting render...'}
 
-        # Progress callback that updates the global progress dict
+        # Progress callback that updates both legacy and job tracker
         def update_progress(progress, status):
             # Map 0-100% rendering progress to 20-90% overall progress
             overall_progress = 20 + int(progress * 0.7)
             video_progress[video_id] = {'progress': overall_progress, 'status': status}
+            update_job(job_id, status=JobStatus.RUNNING, progress=overall_progress)
 
         video_path = composer.create_video(
             audio_path=audio_path,
@@ -324,6 +412,9 @@ def generate_video():
 
         print(f"[VIDEO] SUCCESS! Video ready at: {video_path}\n")
 
+        # Mark job complete
+        update_job(job_id, status=JobStatus.COMPLETED, progress=100, result={'video_path': str(video_path), 'metadata': metadata})
+
         # Clean up progress after a delay
         import threading
         def cleanup():
@@ -334,6 +425,7 @@ def generate_video():
 
         return jsonify({
             'success': True,
+            'job_id': job_id,
             'video_id': video_id,
             'video_path': str(video_path),
             'metadata': metadata
@@ -343,7 +435,8 @@ def generate_video():
         error_trace = traceback.format_exc()
         print(f"[VIDEO] ERROR: {str(e)}")
         print(f"[VIDEO] Traceback:\n{error_trace}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        update_job(job_id, status=JobStatus.FAILED, error=str(e))
+        return jsonify({'success': False, 'error': str(e), 'job_id': job_id}), 500
 
 # ==================== FILE MANAGEMENT ====================
 
@@ -606,6 +699,64 @@ def upload_video():
         'path': str(filepath)
     })
 
+# ==================== JOB TRACKING ====================
+
+@app.route('/api/jobs/active', methods=['GET'])
+def get_active_jobs():
+    """Get all active jobs (pending/running)"""
+    try:
+        jobs = list_active_jobs()
+        return jsonify({
+            'success': True,
+            'jobs': [job.to_dict() for job in jobs]
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/jobs/recent', methods=['GET'])
+def get_recent_jobs():
+    """Get recent jobs (last 50)"""
+    try:
+        limit = request.args.get('limit', 50, type=int)
+        jobs = list_user_jobs(limit=limit)
+        return jsonify({
+            'success': True,
+            'jobs': [job.to_dict() for job in jobs]
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/jobs/<job_id>', methods=['GET'])
+def get_job_status(job_id):
+    """Get job status and result"""
+    try:
+        job = get_job(job_id)
+        if not job:
+            return jsonify({'success': False, 'error': 'Job not found'}), 404
+
+        return jsonify({
+            'success': True,
+            'job': job.to_dict()
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/jobs/<job_id>', methods=['DELETE'])
+def cancel_job(job_id):
+    """Cancel/delete a job"""
+    try:
+        success = delete_job(job_id)
+        if not success:
+            return jsonify({'success': False, 'error': 'Job not found'}), 404
+
+        return jsonify({'success': True, 'message': 'Job deleted'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ==================== HEALTH CHECK ====================
 
 @app.route('/api/health', methods=['GET'])
@@ -616,6 +767,91 @@ def health_check():
         'status': 'healthy',
         'version': '2.0.0-mvp'
     })
+
+
+@app.route('/api/cache/size', methods=['GET'])
+def get_cache_size():
+    """Get total cache size in MB"""
+    from src.generation.tts_elevenlabs import ElevenLabsTTS
+    cache_dir = ElevenLabsTTS.get_cache_dir()
+
+    if not cache_dir.exists():
+        return jsonify({'success': True, 'size_mb': 0})
+
+    total_size = sum(f.stat().st_size for f in cache_dir.glob('*') if f.is_file())
+    size_mb = total_size / (1024 * 1024)
+
+    return jsonify({'success': True, 'size_mb': size_mb})
+
+
+@app.route('/api/cache/clear', methods=['POST'])
+def clear_cache():
+    """Clear all cached audio files"""
+    from src.generation.tts_elevenlabs import ElevenLabsTTS
+    cache_dir = ElevenLabsTTS.get_cache_dir()
+
+    if not cache_dir.exists():
+        return jsonify({'success': True, 'files_deleted': 0})
+
+    files_deleted = 0
+    for f in cache_dir.glob('*'):
+        if f.is_file():
+            f.unlink()
+            files_deleted += 1
+
+    return jsonify({'success': True, 'files_deleted': files_deleted})
+
+
+@app.route('/api/config/quality', methods=['POST'])
+def set_quality_preset():
+    """Set video quality preset"""
+    data = request.json
+    quality = data.get('quality', 'viral')
+
+    presets = {
+        'draft': {'bitrate': '3000k', 'preset': 'faster', 'crf': '23'},
+        'standard': {'bitrate': '5000k', 'preset': 'medium', 'crf': '21'},
+        'viral': {'bitrate': '8000k', 'preset': 'slow', 'crf': '18'}
+    }
+
+    if quality not in presets:
+        return jsonify({'success': False, 'error': 'Invalid quality preset'}), 400
+
+    preset = presets[quality]
+
+    # Update .env file
+    env_path = Path('.env')
+    env_lines = []
+
+    if env_path.exists():
+        with open(env_path, 'r') as f:
+            env_lines = f.readlines()
+
+    # Update or add quality settings
+    settings = {
+        'VIDEO_BITRATE': preset['bitrate'],
+        'VIDEO_PRESET': preset['preset'],
+        'VIDEO_CRF': preset['crf']
+    }
+
+    updated_keys = set()
+    for i, line in enumerate(env_lines):
+        for key, value in settings.items():
+            if line.startswith(f"{key}="):
+                env_lines[i] = f"{key}={value}\n"
+                updated_keys.add(key)
+
+    # Add new keys
+    for key, value in settings.items():
+        if key not in updated_keys:
+            env_lines.append(f"{key}={value}\n")
+
+    # Save
+    with open(env_path, 'w') as f:
+        f.writelines(env_lines)
+
+    return jsonify({'success': True, 'message': f'Quality preset "{quality}" saved', 'preset': preset})
+
 
 if __name__ == '__main__':
     print("=== ContentBot MVP Backend Starting ===")
@@ -630,3 +866,74 @@ if __name__ == '__main__':
     print()
 
     app.run(debug=True, port=5000, host='0.0.0.0')
+
+# ==================== ANALYTICS ENDPOINTS ====================
+
+@app.route('/api/analytics/detailed', methods=['GET'])
+def get_detailed_analytics():
+    """Get detailed analytics with real video metadata"""
+    try:
+        from moviepy import VideoFileClip
+        import time
+
+        videos = []
+        video_files = list(PENDING_DIR.glob("*.mp4"))
+
+        for video_path in video_files:
+            try:
+                stats = video_path.stat()
+                try:
+                    with VideoFileClip(str(video_path)) as clip:
+                        duration = clip.duration
+                except:
+                    duration = 60
+
+                name = video_path.stem
+                genre = 'unknown'
+                for g in ['comedy', 'terror', 'aita', 'genz_chaos', 'relationship_drama']:
+                    if g in name.lower():
+                        genre = g
+                        break
+
+                videos.append({
+                    'name': video_path.name,
+                    'size': stats.st_size,
+                    'modified': stats.st_mtime,
+                    'duration': duration,
+                    'genre': genre,
+                    'monetizable': duration >= 60
+                })
+            except Exception as e:
+                continue
+
+        total_videos = len(videos)
+        total_duration = sum(v['duration'] for v in videos)
+        total_size = sum(v['size'] for v in videos)
+        week_ago = time.time() - (7 * 24 * 60 * 60)
+        this_week = len([v for v in videos if v['modified'] > week_ago])
+
+        genre_counts = {}
+        for v in videos:
+            genre = v['genre']
+            genre_counts[genre] = genre_counts.get(genre, 0) + 1
+
+        monetizable_count = len([v for v in videos if v['monetizable']])
+
+        return jsonify({
+            'success': True,
+            'stats': {
+                'totalVideos': total_videos,
+                'totalDuration': total_duration,
+                'avgDuration': total_duration / total_videos if total_videos > 0 else 0,
+                'totalSize': total_size,
+                'avgSize': total_size / total_videos if total_videos > 0 else 0,
+                'thisWeek': this_week,
+                'monetizable': monetizable_count,
+                'monetizablePercentage': (monetizable_count / total_videos * 100) if total_videos > 0 else 0
+            },
+            'genreBreakdown': genre_counts,
+            'recentVideos': sorted(videos, key=lambda x: x['modified'], reverse=True)[:10]
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

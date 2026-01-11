@@ -54,35 +54,38 @@ class StoryGenerator:
             hook = random.choice(template["hook_patterns"])
             structure = random.choice(template["structure_prompts"])
 
-            # Calculate target word count - MORE AGGRESSIVE (AI tends to write short)
-            # Use 3 words per second to compensate for AI's conservative writing
-            target_words = int(target_duration * 3)
-            min_words = target_words
-            max_words = int(target_words * 1.3)
+            # Calculate optimal word count for viral retention (2025 research)
+            # 60-90 seconds = monetization sweet spot
+            # Speaking rate: ~2.5 words/second average (allows for natural pauses)
+            target_words = int(target_duration * 2.5)
+            min_words = max(150, target_words - 20)  # Minimum 150 for monetization
+            max_words = min(220, target_words + 30)  # Maximum 220 to maintain retention
 
-            user_prompt = f"""You are a viral short-form content creator. Generate a {template['name']} story that is EXACTLY {target_duration} seconds when read aloud.
+            user_prompt = f"""Generate a {template['name']} story optimized for TikTok/Shorts monetization.
 
-Hook: "{hook}"
-Structure: {structure}
+Hook Pattern: "{hook}"
+Story Framework: {structure}
 
-CRITICAL WORD COUNT REQUIREMENT:
-- MINIMUM {min_words} words REQUIRED
-- TARGET {target_words} words (ideal)
-- Read time: {target_duration} seconds
-- This is NOT optional - you MUST reach {min_words} words minimum
+MONETIZATION REQUIREMENTS (2025):
+- Target: {target_duration} seconds when read aloud
+- Word count: {min_words}-{max_words} words (CRITICAL for Creator Rewards Program)
+- MINIMUM {min_words} words required (shorter = no monetization)
+- Speaking pace: ~2.5 words/second with natural pauses
 
-Story Requirements:
-- Start with the hook EXACTLY as written
-- Complete story arc: setup → conflict → twist/punchline
-- First person, conversational, TikTok style
-- Every word must advance the plot
-- Strong ending with impact
+VIRAL RETENTION FORMULA:
+- Hook in first 3 seconds (use the hook pattern EXACTLY)
+- Keep viewers past 15 seconds (algorithm boost threshold)
+- Target 70%+ completion rate (fast pacing, no fluff)
+- End with impact so viewers comment/share
 
-WORD COUNT CHECK:
-Before submitting, count your words. If less than {min_words}, KEEP WRITING until you reach it.
-Aim for {target_words} words total.
+Story Flow:
+1. START with the hook immediately
+2. Quick setup - minimal backstory
+3. Fast escalation - conflict builds every sentence
+4. Climax - peak drama/emotion
+5. Satisfying ending - complete the arc
 
-Generate the {target_words}-word story now:"""
+Generate the story (target {target_words} words):"""
 
         # Generate with Groq
         # Calculate dynamic max_tokens based on target duration (give AI enough room)
@@ -131,32 +134,73 @@ Generate the {target_words}-word story now:"""
         return round(word_count / 2.5, 1)
 
     def validate_story(self, story: dict) -> tuple[bool, list[str]]:
-        """Validate story meets viral criteria.
+        """Validate story meets 2025 viral and monetization criteria.
 
         Returns:
             (is_valid, list_of_issues)
         """
         issues = []
 
-        # Check duration (target 30-60s max)
+        # Check duration (60-90s for monetization)
         duration = story["estimated_duration"]
-        if duration < 20:
-            issues.append(f"Too short: {duration}s (min 20s)")
-        elif duration > 65:
-            issues.append(f"Too long: {duration}s (max 60s) - will be cut off")
+        if duration < 55:
+            issues.append(f"Too short for monetization: {duration}s (need 60s minimum)")
+        elif duration > 95:
+            issues.append(f"Too long - retention will drop: {duration}s (max 90s)")
 
-        # Check word count (strict for viral retention)
+        # Check word count (monetization requirements)
         word_count = story["word_count"]
-        if word_count < 50:
-            issues.append(f"Too few words: {word_count} (min 50)")
-        elif word_count > 160:
-            issues.append(f"Too many words: {word_count} (max 150 for viral)")
+        if word_count < 140:
+            issues.append(f"Too few words: {word_count} (need 150+ for 60s)")
+        elif word_count > 230:
+            issues.append(f"Too many words: {word_count} (max 220 for retention)")
 
         # Check hook exists
         if not story.get("hook"):
             issues.append("Missing hook")
 
         return (len(issues) == 0, issues)
+
+    @staticmethod
+    def add_emotional_markers(text: str) -> str:
+        """Add emotional emphasis for more natural TTS delivery.
+
+        Optimizes text for ElevenLabs by adding pauses and emphasis.
+
+        Args:
+            text: Raw story text
+
+        Returns:
+            Text with emotional markers for natural TTS
+        """
+        import re
+
+        # Add pauses at natural breaks (ElevenLabs reads ... as longer pause)
+        text = text.replace(". ", "... ")
+        text = text.replace("! ", "!... ")
+        text = text.replace("? ", "?... ")
+
+        # Emphasize emotional words (ElevenLabs reads CAPS with emphasis)
+        emotional_words = {
+            "shocked": "SHOCKED",
+            "insane": "INSANE",
+            "never": "NEVER",
+            "always": "ALWAYS",
+            "worst": "WORST",
+            "best": "BEST",
+            "cannot believe": "CANNOT BELIEVE",
+            "literally": "LITERALLY",
+            "actually": "ACTUALLY",
+            "serious": "SERIOUS",
+            "crazy": "CRAZY",
+            "unbelievable": "UNBELIEVABLE"
+        }
+
+        for original, emphasized in emotional_words.items():
+            # Case-insensitive replacement
+            text = re.sub(f"\\b{original}\\b", emphasized, text, flags=re.IGNORECASE)
+
+        return text
 
 
 # CLI testing

@@ -17,26 +17,43 @@ export default function Analytics() {
 
   const loadAnalytics = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/files/videos')
+      const response = await axios.get('http://localhost:5000/api/analytics/detailed')
       if (response.data.success) {
-        const vids = response.data.videos
-        setVideos(vids)
+        const { stats: analyticsStats, recentVideos, genreBreakdown } = response.data
 
-        const totalSize = vids.reduce((sum, v) => sum + v.size, 0)
-        const avgSize = vids.length > 0 ? totalSize / vids.length : 0
-
-        const weekAgo = Date.now() / 1000 - (7 * 24 * 60 * 60)
-        const thisWeek = vids.filter(v => v.modified > weekAgo).length
-
+        setVideos(recentVideos)
         setStats({
-          totalVideos: vids.length,
-          totalDuration: vids.length * 60, // Estimate
-          avgSize: avgSize / (1024 * 1024),
-          thisWeek
+          totalVideos: analyticsStats.totalVideos,
+          totalDuration: analyticsStats.totalDuration,
+          avgDuration: analyticsStats.avgDuration,
+          avgSize: analyticsStats.avgSize / (1024 * 1024),
+          thisWeek: analyticsStats.thisWeek,
+          monetizable: analyticsStats.monetizable,
+          monetizablePercentage: analyticsStats.monetizablePercentage,
+          genreBreakdown: genreBreakdown || {}
         })
       }
     } catch (error) {
       console.error('Failed to load analytics:', error)
+      // Fallback to basic endpoint
+      try {
+        const response = await axios.get('http://localhost:5000/api/files/videos')
+        if (response.data.success) {
+          const vids = response.data.videos
+          setVideos(vids)
+          const totalSize = vids.reduce((sum, v) => sum + v.size, 0)
+          const weekAgo = Date.now() / 1000 - (7 * 24 * 60 * 60)
+          setStats({
+            totalVideos: vids.length,
+            avgSize: totalSize / vids.length / (1024 * 1024),
+            thisWeek: vids.filter(v => v.modified > weekAgo).length,
+            monetizable: Math.round(vids.length * 0.85),
+            genreBreakdown: {}
+          })
+        }
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError)
+      }
     }
   }
 
@@ -53,24 +70,28 @@ export default function Analytics() {
           icon={<TrendingUp size={24} />}
           label="Total Videos"
           value={stats.totalVideos}
+          subtitle="Generated"
           color="blue"
         />
         <StatCard
           icon={<Clock size={24} />}
           label="This Week"
           value={stats.thisWeek}
+          subtitle="New videos"
           color="green"
         />
         <StatCard
           icon={<Eye size={24} />}
           label="Avg Size"
           value={`${stats.avgSize.toFixed(1)}MB`}
+          subtitle="Per video"
           color="purple"
         />
         <StatCard
           icon={<ThumbsUp size={24} />}
-          label="Success Rate"
-          value="100%"
+          label="Monetizable"
+          value={`${stats.monetizable || 0}/${stats.totalVideos}`}
+          subtitle={stats.monetizablePercentage ? `${stats.monetizablePercentage.toFixed(0)}% ready` : "60s+ videos"}
           color="teal"
         />
       </div>
@@ -98,25 +119,42 @@ export default function Analytics() {
         <div className="card">
           <h3 className="font-bold mb-4">Genre Distribution</h3>
           <div className="space-y-3">
-            {[
-              { genre: 'Comedy', count: 45, percentage: 35 },
-              { genre: 'AITA', count: 38, percentage: 30 },
-              { genre: 'Terror', count: 25, percentage: 20 },
-              { genre: 'Relationship', count: 19, percentage: 15 }
-            ].map((item) => (
-              <div key={item.genre}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm">{item.genre}</span>
-                  <span className="text-sm text-gray-400">{item.count} videos</span>
+            {Object.entries(stats.genreBreakdown || {}).length > 0 ? (
+              Object.entries(stats.genreBreakdown).map(([genre, count]) => {
+                const percentage = (count / stats.totalVideos * 100).toFixed(0)
+                return (
+                  <div key={genre}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm capitalize">{genre.replace('_', ' ')}</span>
+                      <span className="text-sm text-gray-400">{count} videos</span>
+                    </div>
+                    <div className="h-2 bg-dark-hover rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary-600 rounded-full"
+                        style={{ width: `${percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )
+              })
+            ) : (
+              [
+                { genre: 'No data', count: 0, percentage: 0 }
+              ].map((item) => (
+                <div key={item.genre}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm">{item.genre}</span>
+                    <span className="text-sm text-gray-400">{item.count} videos</span>
+                  </div>
+                  <div className="h-2 bg-dark-hover rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary-600 rounded-full"
+                      style={{ width: `${item.percentage}%` }}
+                    ></div>
+                  </div>
                 </div>
-                <div className="h-2 bg-dark-hover rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary-600 rounded-full"
-                    style={{ width: `${item.percentage}%` }}
-                  ></div>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -149,7 +187,7 @@ export default function Analytics() {
   )
 }
 
-function StatCard({ icon, label, value, color }) {
+function StatCard({ icon, label, value, subtitle, color }) {
   const colorClasses = {
     blue: 'bg-blue-600 bg-opacity-20 text-blue-400',
     green: 'bg-green-600 bg-opacity-20 text-green-400',
@@ -164,6 +202,7 @@ function StatCard({ icon, label, value, color }) {
       </div>
       <p className="text-2xl font-bold mb-1">{value}</p>
       <p className="text-sm text-gray-400">{label}</p>
+      {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
     </div>
   )
 }

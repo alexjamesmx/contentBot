@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Save, Eye } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Save, Eye, Check, AlertCircle } from 'lucide-react'
+import axios from 'axios'
 
 export default function SubtitleConfig() {
   const [config, setConfig] = useState({
@@ -7,16 +8,46 @@ export default function SubtitleConfig() {
     fontColor: '#FFFF00',
     strokeColor: '#000000',
     strokeWidth: 3,
-    wordsPerChunk: 2,
-    position: 'center',
-    fontFamily: 'Impact'
+    wordsPerChunk: 4,
+    position: 'bottom',
+    fontFamily: 'Montserrat-Bold'
   })
 
   const [previewText] = useState('This is how your subtitles will look')
+  const [loading, setLoading] = useState(false)
+  const [saveStatus, setSaveStatus] = useState(null)
 
-  const saveConfig = () => {
-    // TODO: Save to backend
-    alert('Subtitle configuration saved!')
+  useEffect(() => {
+    loadConfig()
+  }, [])
+
+  const loadConfig = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/subtitles/config')
+      if (response.data.success) {
+        setConfig(response.data.config)
+      }
+    } catch (error) {
+      console.error('Failed to load config:', error)
+    }
+  }
+
+  const saveConfig = async () => {
+    setLoading(true)
+    setSaveStatus(null)
+    try {
+      const response = await axios.post('http://localhost:5000/api/subtitles/config', config)
+      if (response.data.success) {
+        setSaveStatus('success')
+        setTimeout(() => setSaveStatus(null), 3000)
+      }
+    } catch (error) {
+      console.error('Failed to save config:', error)
+      setSaveStatus('error')
+      setTimeout(() => setSaveStatus(null), 3000)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -114,9 +145,9 @@ export default function SubtitleConfig() {
                 onChange={(e) => setConfig({ ...config, fontFamily: e.target.value })}
                 className="input w-full"
               >
-                <option value="Impact">Impact (Viral)</option>
+                <option value="Montserrat-Bold">Montserrat Bold (Recommended - 60% of viral videos)</option>
+                <option value="Impact">Impact</option>
                 <option value="Arial-Bold">Arial Bold</option>
-                <option value="Montserrat-ExtraBold">Montserrat Extra Bold</option>
                 <option value="Bebas-Neue">Bebas Neue</option>
                 <option value="Anton">Anton</option>
               </select>
@@ -130,16 +161,19 @@ export default function SubtitleConfig() {
             <div className="mb-6">
               <label className="block text-sm font-medium mb-2">
                 Words Per Chunk: {config.wordsPerChunk}
+                {config.wordsPerChunk >= 3 && config.wordsPerChunk <= 5 && (
+                  <span className="ml-2 text-xs text-green-400">✓ Optimal</span>
+                )}
               </label>
               <input
                 type="range"
                 min="1"
-                max="5"
+                max="6"
                 value={config.wordsPerChunk}
                 onChange={(e) => setConfig({ ...config, wordsPerChunk: parseInt(e.target.value) })}
                 className="w-full"
               />
-              <p className="text-xs text-gray-400 mt-1">2-3 words = most viral</p>
+              <p className="text-xs text-gray-400 mt-1">3-5 words = most viral (2025 research)</p>
             </div>
 
             {/* Position */}
@@ -151,18 +185,35 @@ export default function SubtitleConfig() {
                 className="input w-full"
               >
                 <option value="top">Top</option>
-                <option value="center">Center (Recommended)</option>
-                <option value="bottom">Bottom</option>
+                <option value="center">Center</option>
+                <option value="bottom">Bottom (Recommended for 9:16)</option>
               </select>
             </div>
           </div>
 
           <button
             onClick={saveConfig}
-            className="btn-primary w-full flex items-center justify-center gap-2"
+            disabled={loading}
+            className={`btn-primary w-full flex items-center justify-center gap-2 ${
+              loading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
-            <Save size={20} />
-            Save Configuration
+            {saveStatus === 'success' ? (
+              <>
+                <Check size={20} />
+                Saved Successfully!
+              </>
+            ) : saveStatus === 'error' ? (
+              <>
+                <AlertCircle size={20} />
+                Save Failed
+              </>
+            ) : (
+              <>
+                <Save size={20} />
+                {loading ? 'Saving...' : 'Save Configuration'}
+              </>
+            )}
           </button>
         </div>
 
