@@ -97,22 +97,26 @@ export default function Analytics() {
       </div>
 
       {/* Production Timeline */}
-      <div className="card mb-6">
-        <h3 className="font-bold mb-4">Production Timeline</h3>
-        <div className="h-64 flex items-end justify-between gap-2">
-          {[12, 8, 15, 23, 19, 28, 35].map((value, index) => (
-            <div key={index} className="flex-1 flex flex-col items-center">
-              <div
-                className="w-full bg-primary-600 rounded-t-lg transition-all hover:bg-primary-500"
-                style={{ height: `${(value / 35) * 100}%` }}
-              ></div>
-              <p className="text-xs text-gray-400 mt-2">
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index]}
-              </p>
-            </div>
-          ))}
+      {stats.weeklyData && stats.weeklyData.length > 0 && (
+        <div className="card mb-6">
+          <h3 className="font-bold mb-4">Production Timeline (This Week)</h3>
+          <div className="h-64 flex items-end justify-between gap-2">
+            {stats.weeklyData.map((day, index) => {
+              const maxCount = Math.max(...stats.weeklyData.map(d => d.count), 1)
+              return (
+                <div key={index} className="flex-1 flex flex-col items-center">
+                  <div
+                    className="w-full bg-primary-600 rounded-t-lg transition-all hover:bg-primary-500"
+                    style={{ height: `${(day.count / maxCount) * 100}%` }}
+                    title={`${day.count} videos`}
+                  ></div>
+                  <p className="text-xs text-gray-400 mt-2">{day.label}</p>
+                </div>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Genre Breakdown */}
       <div className="grid grid-cols-2 gap-6">

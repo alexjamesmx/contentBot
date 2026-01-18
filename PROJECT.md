@@ -93,6 +93,49 @@ POST /api/generate/subtitles  # Sync subtitles
 POST /api/generate/video      # Render final
 ```
 
+### Story Improvement
+```
+POST /api/stories/improve     # AI-powered story improvement (not regeneration)
+```
+
+**Request Body:**
+```json
+{
+  "current_text": "story text to improve",
+  "improvement_type": "enhance|expand|refine|make_viral",
+  "genre": "comedy",
+  "target_duration": 75,
+  "series_id": "optional-series-id",
+  "part_number": 1
+}
+```
+
+**Improvement Types:**
+- `enhance` - Make more engaging/dramatic while keeping same storyline
+- `expand` - Add details/context to reach target duration
+- `refine` - Improve grammar, pacing, and hooks
+- `make_viral` - Optimize for TikTok virality (hooks, cliffhangers, tension)
+
+**Response:**
+```json
+{
+  "success": true,
+  "original_text": "...",
+  "improved_text": "...",
+  "improvement_type": "enhance",
+  "changes_summary": "Enhanced emotional impact and engagement",
+  "word_count": 134,
+  "estimated_duration": 53.6,
+  "metrics": {
+    "original_words": 46,
+    "improved_words": 134,
+    "word_difference": 88,
+    "original_duration": 18.4,
+    "improved_duration": 53.6
+  }
+}
+```
+
 ### Story Library
 ```
 GET    /api/stories           # List all

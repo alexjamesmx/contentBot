@@ -14,16 +14,24 @@
 
 import { useEffect, useRef } from 'react'
 
-const STORAGE_KEY = 'contentbot_generator_state'
+const STORAGE_KEY_PREFIX = 'contentbot_generator_state'
 const AUTO_SAVE_DELAY = 1000 // Debounce saves (1 second)
 
 export function useGeneratorPersistence(state, setState) {
   const saveTimerRef = useRef(null)
   const isRestoringRef = useRef(false)
 
+  // Generate unique key per series part
+  const getStorageKey = () => {
+    if (state.seriesId && state.currentPartNumber) {
+      return `${STORAGE_KEY_PREFIX}_series_${state.seriesId}_part_${state.currentPartNumber}`
+    }
+    return STORAGE_KEY_PREFIX
+  }
+
   // Restore state on mount
   useEffect(() => {
-    const savedState = loadState()
+    const savedState = loadState(getStorageKey())
     if (savedState && Object.keys(savedState).length > 0) {
       isRestoringRef.current = true
       setState(savedState)
@@ -45,7 +53,7 @@ export function useGeneratorPersistence(state, setState) {
 
     // Debounce save
     saveTimerRef.current = setTimeout(() => {
-      saveState(state)
+      saveState(state, getStorageKey())
     }, AUTO_SAVE_DELAY)
 
     return () => {
@@ -56,12 +64,12 @@ export function useGeneratorPersistence(state, setState) {
   }, [state])
 
   return {
-    clearSavedState: () => clearState(),
-    hasSavedState: () => hasSavedState()
+    clearSavedState: () => clearState(getStorageKey()),
+    hasSavedState: () => hasSavedState(getStorageKey())
   }
 }
 
-function saveState(state) {
+function saveState(state, storageKey) {
   try {
     // Filter out empty/default state to save space
     const stateToSave = {}
@@ -84,19 +92,26 @@ function saveState(state) {
     stateToSave.targetDuration = state.targetDuration
     stateToSave.useElevenLabs = state.useElevenLabs
 
+    // Save series state (if in series mode)
+    if (state.seriesId) stateToSave.seriesId = state.seriesId
+    if (state.currentPartNumber) stateToSave.currentPartNumber = state.currentPartNumber
+    if (state.seriesMode !== undefined) stateToSave.seriesMode = state.seriesMode
+    if (state.seriesTheme) stateToSave.seriesTheme = state.seriesTheme
+    if (state.totalParts) stateToSave.totalParts = state.totalParts
+
     // Add metadata
     stateToSave._timestamp = Date.now()
     stateToSave._version = '1.0'
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave))
+    localStorage.setItem(storageKey, JSON.stringify(stateToSave))
   } catch (error) {
     console.error('Failed to save generator state:', error)
   }
 }
 
-function loadState() {
+function loadState(storageKey) {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
+    const saved = localStorage.getItem(storageKey)
     if (!saved) return null
 
     const state = JSON.parse(saved)
@@ -104,7 +119,7 @@ function loadState() {
     // Check if state is too old (>24 hours)
     if (state._timestamp && (Date.now() - state._timestamp) > 24 * 60 * 60 * 1000) {
       console.log('Saved state expired, clearing...')
-      clearState()
+      clearState(storageKey)
       return null
     }
 
@@ -115,17 +130,17 @@ function loadState() {
   }
 }
 
-function clearState() {
+function clearState(storageKey) {
   try {
-    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(storageKey)
   } catch (error) {
     console.error('Failed to clear generator state:', error)
   }
 }
 
-function hasSavedState() {
+function hasSavedState(storageKey) {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
+    const saved = localStorage.getItem(storageKey)
     return saved !== null && saved !== undefined && saved !== ''
   } catch (error) {
     return false

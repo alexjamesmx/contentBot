@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Play, Download, Trash2, Loader, RefreshCw, Search, Filter, Edit2, Copy, Grid, List, ChevronDown, CheckSquare, Square } from 'lucide-react'
+import { Play, Download, Trash2, Loader, RefreshCw, Search, Eye, ChevronRight, X, Music, Video as VideoIcon, FileText, CheckSquare } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import AudioPlayer from '../components/AudioPlayer'
@@ -7,96 +7,93 @@ import VideoPlayer from '../components/VideoPlayer'
 
 const API_URL = 'http://localhost:5000/api'
 
-export default function Library({ onReuseStory, onReuseAudio }) {
+export default function Library({ onReuseStory }) {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState('stories')
+
+  const [series, setSeries] = useState([])
   const [loading, setLoading] = useState(false)
-  const [viewMode, setViewMode] = useState('grid')
-
-  const [stories, setStories] = useState([])
-  const [audios, setAudios] = useState([])
-  const [videos, setVideos] = useState([])
-
-  // Search and filter state
   const [searchQuery, setSearchQuery] = useState('')
+  const [contentFilter, setContentFilter] = useState('all')
+  const [assetFilter, setAssetFilter] = useState('all')
   const [selectedGenres, setSelectedGenres] = useState([])
-  const [wordCountRange, setWordCountRange] = useState([0, 300])
   const [sortBy, setSortBy] = useState('date')
-  const [showFilters, setShowFilters] = useState(false)
-
-  // Bulk selection
-  const [selectedItems, setSelectedItems] = useState([])
+  const [expandedSeries, setExpandedSeries] = useState(null)
   const [bulkMode, setBulkMode] = useState(false)
-
-  // Edit modal
-  const [editingStory, setEditingStory] = useState(null)
-  const [editContent, setEditContent] = useState('')
+  const [selectedItems, setSelectedItems] = useState([])
 
   const genres = ['comedy', 'terror', 'aita', 'genz_chaos', 'relationship_drama']
 
   useEffect(() => {
-    loadContent()
-  }, [activeTab])
+    loadAllContent()
+  }, [])
 
-  const loadContent = async () => {
+  const loadAllContent = async () => {
     setLoading(true)
     try {
-      if (activeTab === 'stories') {
-        const { data } = await axios.get(`${API_URL}/stories`)
-        setStories(data.stories || [])
-      } else if (activeTab === 'audios') {
-        const { data } = await axios.get(`${API_URL}/files/audios`)
-        setAudios(data.audios || [])
-      } else if (activeTab === 'videos') {
-        const { data } = await axios.get(`${API_URL}/files/videos`)
-        setVideos(data.videos || [])
-      }
+      const { data } = await axios.get(`${API_URL}/series`)
+      setSeries(data.series || [])
     } catch (error) {
-      console.error('Failed to load content:', error)
+      console.error('Failed to load series:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const formatDate = (timestamp) => {
-    return new Date(timestamp * 1000).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+  const formatDate = (isoString) => {
+    if (!isoString) return 'Unknown'
+    try {
+      return new Date(isoString).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch {
+      return 'Unknown'
+    }
   }
 
-  const formatSize = (bytes) => {
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
-  }
+  const getFilteredSeries = () => {
+    let filtered = [...series]
 
-  // Filter and search logic
-  const getFilteredStories = () => {
-    let filtered = [...stories]
-
-    if (searchQuery) {
-      filtered = filtered.filter(s =>
-        s.story.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (s.title && s.title.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
+    // Content filter
+    if (contentFilter === 'singles') {
+      filtered = filtered.filter(s => s.total_parts === 1)
+    } else if (contentFilter === 'multi-part') {
+      filtered = filtered.filter(s => s.total_parts > 1)
     }
 
+    // Asset filter
+    if (assetFilter === 'with-audio') {
+      filtered = filtered.filter(s => s.has_audio)
+    } else if (assetFilter === 'with-video') {
+      filtered = filtered.filter(s => s.has_video)
+    } else if (assetFilter === 'complete') {
+      filtered = filtered.filter(s => s.has_audio && s.has_video)
+    }
+
+    // Genre filter
     if (selectedGenres.length > 0) {
       filtered = filtered.filter(s => selectedGenres.includes(s.genre))
     }
 
-    if (wordCountRange[0] > 0 || wordCountRange[1] < 300) {
-      filtered = filtered.filter(s =>
-        s.word_count >= wordCountRange[0] && s.word_count <= wordCountRange[1]
-      )
+    // Search filter
+    if (searchQuery) {
+      filtered = filtered.filter(s => {
+        const searchLower = searchQuery.toLowerCase()
+        return (
+          s.title?.toLowerCase().includes(searchLower) ||
+          s.theme?.toLowerCase().includes(searchLower) ||
+          s.parts?.some(p => p.story_text?.toLowerCase().includes(searchLower))
+        )
+      })
     }
 
     // Sort
     if (sortBy === 'date') {
-      filtered.sort((a, b) => b.created_at - a.created_at)
-    } else if (sortBy === 'words') {
-      filtered.sort((a, b) => b.word_count - a.word_count)
+      filtered.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+    } else if (sortBy === 'title') {
+      filtered.sort((a, b) => (a.title || '').localeCompare(b.title || ''))
     } else if (sortBy === 'genre') {
       filtered.sort((a, b) => a.genre.localeCompare(b.genre))
     }
@@ -104,46 +101,41 @@ export default function Library({ onReuseStory, onReuseAudio }) {
     return filtered
   }
 
-  const handleDeleteStory = async (storyId) => {
-    if (!confirm('Delete this story?')) return
+  const handleDeleteSeries = async (seriesId) => {
+    if (!confirm('Delete this series? This will remove all associated parts and assets.')) return
+
     try {
-      await axios.delete(`${API_URL}/stories/${storyId}`)
-      loadContent()
+      await axios.delete(`${API_URL}/stories/series/${seriesId}`)
+      loadAllContent()
     } catch (error) {
-      console.error('Failed to delete story:', error)
+      console.error('Failed to delete series:', error)
+      alert('Failed to delete series')
     }
   }
 
-  const handleDuplicateStory = async (story) => {
-    try {
-      await axios.post(`${API_URL}/stories`, {
-        ...story,
-        id: undefined,
-        title: (story.title || 'Untitled') + ' (Copy)',
-        created_at: Date.now() / 1000
-      })
-      loadContent()
-    } catch (error) {
-      console.error('Failed to duplicate story:', error)
-    }
+  const handleContinueSeries = (seriesId, seriesData) => {
+    navigate('/generator', {
+      state: {
+        seriesId,
+        continueMode: true,
+        seriesData  // Pass full series data for immediate loading
+      }
+    })
   }
 
-  const handleEditStory = (story) => {
-    setEditingStory(story)
-    setEditContent(story.story)
+  const handleViewDetails = async (seriesData) => {
+    setExpandedSeries(seriesData)
   }
 
-  const handleSaveEdit = async () => {
-    try {
-      await axios.put(`${API_URL}/stories/${editingStory.id}`, {
-        ...editingStory,
-        story: editContent,
-        word_count: editContent.split(' ').length
+  const handleReuseSeries = (seriesData) => {
+    if (seriesData.parts && seriesData.parts.length > 0 && onReuseStory) {
+      const firstPart = seriesData.parts[0]
+      onReuseStory({
+        story: firstPart.story_text,
+        genre: seriesData.genre,
+        word_count: firstPart.word_count
       })
-      setEditingStory(null)
-      loadContent()
-    } catch (error) {
-      console.error('Failed to save story:', error)
+      navigate('/generator')
     }
   }
 
@@ -159,446 +151,457 @@ export default function Library({ onReuseStory, onReuseAudio }) {
     )
   }
 
+  const handleSelectAll = () => {
+    setSelectedItems(filteredSeries.map(s => s.story_id))
+  }
+
+  const handleDeselectAll = () => {
+    setSelectedItems([])
+  }
+
   const handleBulkDelete = async () => {
-    if (!confirm(`Delete ${selectedItems.length} selected items?`)) return
+    if (!confirm(`Delete ${selectedItems.length} selected series? This will remove all associated parts and assets.`)) return
+
+    setLoading(true)
     try {
       for (const id of selectedItems) {
-        await axios.delete(`${API_URL}/stories/${id}`)
+        await axios.delete(`${API_URL}/stories/series/${id}`)
       }
       setSelectedItems([])
       setBulkMode(false)
-      loadContent()
+      loadAllContent()
     } catch (error) {
       console.error('Failed to bulk delete:', error)
+      alert('Failed to delete some series')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleBulkExport = () => {
-    const selected = stories.filter(s => selectedItems.includes(s.id))
-    const dataStr = JSON.stringify(selected, null, 2)
-    const blob = new Blob([dataStr], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `stories_export_${Date.now()}.json`
-    link.click()
+  const filteredSeries = getFilteredSeries()
+
+  const FilterChip = ({ active, onClick, label, count }) => (
+    <button
+      onClick={onClick}
+      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+        active
+          ? 'bg-primary-600 text-white'
+          : 'bg-dark-lighter text-gray-300 hover:bg-dark-hover'
+      }`}
+    >
+      {label}
+      {count !== undefined && <span className="ml-1.5 text-sm opacity-75">({count})</span>}
+    </button>
+  )
+
+  const SeriesCard = ({ s }) => {
+    const isMultiPart = s.total_parts > 1
+    const isComplete = s.current_part >= s.total_parts
+    const progress = s.total_parts > 0 ? (s.current_part / s.total_parts) * 100 : 0
+
+    return (
+      <div className="relative bg-dark-lighter border border-dark-border rounded-lg p-5 hover:border-primary-500 transition-colors">
+        {bulkMode && (
+          <div className="absolute top-3 right-3 z-10">
+            <input
+              type="checkbox"
+              checked={selectedItems.includes(s.story_id)}
+              onChange={() => toggleItemSelection(s.story_id)}
+              className="w-5 h-5 cursor-pointer"
+            />
+          </div>
+        )}
+        {/* Header */}
+        <div className="flex justify-between items-start mb-3">
+          <div className="flex-1 mr-3">
+            <h3 className="font-bold text-lg mb-1 line-clamp-1">{s.title}</h3>
+            <div className="flex gap-2 items-center text-sm text-gray-400">
+              <span className="px-2 py-0.5 bg-dark-hover rounded text-xs font-medium">
+                {s.genre.replace('_', ' ')}
+              </span>
+              {isMultiPart && (
+                <span className="px-2 py-0.5 bg-purple-900 text-purple-300 rounded text-xs font-medium">
+                  Series
+                </span>
+              )}
+              <span>{formatDate(s.updated_at)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Progress */}
+        <div className="mb-3">
+          <div className="flex justify-between text-sm mb-1">
+            <span className="text-gray-400">
+              {isMultiPart ? `Part ${s.current_part}/${s.total_parts}` : 'Single Video'}
+            </span>
+            {!isComplete && isMultiPart && (
+              <span className="text-primary-400 text-xs">In Progress</span>
+            )}
+            {isComplete && isMultiPart && (
+              <span className="text-green-400 text-xs">Complete</span>
+            )}
+          </div>
+          {isMultiPart && (
+            <div className="w-full bg-dark-hover rounded-full h-1.5">
+              <div
+                className={`h-full rounded-full transition-all ${isComplete ? 'bg-green-500' : 'bg-primary-500'}`}
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Asset Badges */}
+        <div className="flex gap-2 mb-4">
+          {s.audio_count > 0 && (
+            <span className="px-2 py-1 bg-blue-900/30 text-blue-300 rounded text-xs flex items-center gap-1">
+              <Music size={12} />
+              Audio ({s.audio_count})
+            </span>
+          )}
+          {s.video_count > 0 && (
+            <span className="px-2 py-1 bg-green-900/30 text-green-300 rounded text-xs flex items-center gap-1">
+              <VideoIcon size={12} />
+              Video ({s.video_count})
+            </span>
+          )}
+          {s.parts_count > 0 && (
+            <span className="px-2 py-1 bg-gray-700/30 text-gray-300 rounded text-xs flex items-center gap-1">
+              <FileText size={12} />
+              {s.parts_count} part{s.parts_count > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleViewDetails(s)}
+            className="btn-secondary flex-1 text-sm py-2 flex items-center justify-center gap-1"
+          >
+            <Eye size={14} />
+            View Details
+          </button>
+
+          {isMultiPart && !isComplete && (
+            <button
+              onClick={() => handleContinueSeries(s.story_id, s)}
+              className="btn-primary flex-1 text-sm py-2 flex items-center justify-center gap-1"
+            >
+              <ChevronRight size={14} />
+              Continue
+            </button>
+          )}
+
+          {s.parts?.length > 0 && (
+            <button
+              onClick={() => handleReuseSeries(s)}
+              className="btn-secondary text-sm py-2 px-3"
+              title="Reuse in Generator"
+            >
+              <Play size={14} />
+            </button>
+          )}
+
+          <button
+            onClick={() => handleDeleteSeries(s.story_id)}
+            className="btn-secondary text-red-400 hover:bg-red-900/20 text-sm py-2 px-3"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+    )
   }
 
-  const filteredStories = getFilteredStories()
+  const DetailModal = () => {
+    if (!expandedSeries) return null
+
+    return (
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setExpandedSeries(null)}>
+        <div className="bg-dark-lighter border border-dark-border rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          {/* Header */}
+          <div className="sticky top-0 bg-dark-lighter border-b border-dark-border p-6 flex justify-between items-start">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">{expandedSeries.title}</h2>
+              <div className="flex gap-2 items-center text-sm text-gray-400">
+                <span className="px-2 py-0.5 bg-dark-hover rounded">{expandedSeries.genre}</span>
+                <span>Theme: {expandedSeries.theme}</span>
+                <span>•</span>
+                <span>{expandedSeries.parts_count} part{expandedSeries.parts_count > 1 ? 's' : ''}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setExpandedSeries(null)}
+              className="text-gray-400 hover:text-white"
+            >
+              <X size={24} />
+            </button>
+          </div>
+
+          {/* Parts List */}
+          <div className="p-6 space-y-4">
+            {expandedSeries.parts?.length === 0 ? (
+              <p className="text-gray-400 text-center py-8">No parts generated yet</p>
+            ) : (
+              expandedSeries.parts?.map((part, idx) => (
+                <div key={idx} className="bg-dark-hover border border-dark-border rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h3 className="font-bold text-lg">Part {part.part}</h3>
+                      <div className="text-sm text-gray-400">
+                        {part.word_count} words • {part.duration}s • {formatDate(part.timestamp)}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {part.audio_path && (
+                        <span className="px-2 py-1 bg-blue-900/30 text-blue-300 rounded text-xs">
+                          <Music size={12} className="inline mr-1" />
+                          Audio
+                        </span>
+                      )}
+                      {part.video_path && (
+                        <span className="px-2 py-1 bg-green-900/30 text-green-300 rounded text-xs">
+                          <VideoIcon size={12} className="inline mr-1" />
+                          Video
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Story Text Preview */}
+                  <div className="bg-dark rounded p-3 mb-3">
+                    <p className="text-sm text-gray-300 line-clamp-3">{part.story_text}</p>
+                  </div>
+
+                  {/* Audio Player */}
+                  {part.audio_path && (
+                    <div className="mb-3">
+                      <div className="text-xs text-gray-400 mb-1">Audio:</div>
+                      <AudioPlayer src={`${API_URL.replace('/api', '')}/api/files/audio/${part.audio_path}`} />
+                    </div>
+                  )}
+
+                  {/* Video Player */}
+                  {part.video_path && (
+                    <div className="mb-3">
+                      <div className="text-xs text-gray-400 mb-1">Video:</div>
+                      <VideoPlayer src={`${API_URL.replace('/api', '')}/api/files/video/${part.video_path}`} />
+                    </div>
+                  )}
+
+                  {/* Download Buttons */}
+                  <div className="flex gap-2">
+                    {part.audio_path && (
+                      <a
+                        href={`${API_URL.replace('/api', '')}/api/files/audio/${part.audio_path}`}
+                        download
+                        className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1"
+                      >
+                        <Download size={12} />
+                        Download Audio
+                      </a>
+                    )}
+                    {part.video_path && (
+                      <a
+                        href={`${API_URL.replace('/api', '')}/api/files/video/${part.video_path}`}
+                        download
+                        className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1"
+                      >
+                        <Download size={12} />
+                        Download Video
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-8">
+      {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Content Library</h1>
-        <p className="text-gray-400">Manage and reuse your generated content</p>
+        <p className="text-gray-400">Manage your video series and content</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-dark-border">
+      {/* Search & Refresh */}
+      <div className="flex gap-3 mb-6">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Search by title, theme, or content..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-dark-lighter border border-dark-border rounded-lg focus:border-primary-500 focus:outline-none"
+          />
+        </div>
         <button
-          onClick={() => setActiveTab('stories')}
-          className={`px-6 py-3 font-medium transition-colors ${
-            activeTab === 'stories'
-              ? 'text-primary-500 border-b-2 border-primary-500'
-              : 'text-gray-400 hover:text-white'
-          }`}
+          onClick={loadAllContent}
+          disabled={loading}
+          className="btn-secondary px-4 flex items-center gap-2"
         >
-          Stories ({stories.length})
+          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+          Refresh
         </button>
         <button
-          onClick={() => setActiveTab('audios')}
-          className={`px-6 py-3 font-medium transition-colors ${
-            activeTab === 'audios'
-              ? 'text-primary-500 border-b-2 border-primary-500'
-              : 'text-gray-400 hover:text-white'
-          }`}
+          onClick={() => {
+            setBulkMode(!bulkMode)
+            setSelectedItems([])
+          }}
+          className="btn-secondary px-4 flex items-center gap-2"
         >
-          Audio ({audios.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('videos')}
-          className={`px-6 py-3 font-medium transition-colors ${
-            activeTab === 'videos'
-              ? 'text-primary-500 border-b-2 border-primary-500'
-              : 'text-gray-400 hover:text-white'
-          }`}
-        >
-          Videos ({videos.length})
+          {bulkMode ? <X size={18} /> : <CheckSquare size={18} />}
+          {bulkMode ? 'Cancel' : 'Select'}
         </button>
       </div>
 
-      {/* Search and Filters - Stories Only */}
-      {activeTab === 'stories' && (
-        <div className="mb-6 space-y-4">
-          <div className="flex gap-3">
-            <div className="flex-1 relative">
-              <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search stories..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="input w-full pl-10"
-              />
-            </div>
+      {/* Bulk Actions Bar */}
+      {bulkMode && (
+        <div className="mb-4 p-4 bg-primary-900/20 border border-primary-500 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`btn-secondary flex items-center gap-2 ${showFilters ? 'bg-primary-900 bg-opacity-20 border-primary-800' : ''}`}
+              onClick={handleSelectAll}
+              className="btn-secondary text-sm"
             >
-              <Filter size={18} />
-              Filters
-              <ChevronDown size={16} className={`transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+              Select All ({filteredSeries.length})
             </button>
             <button
-              onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-              className="btn-secondary flex items-center gap-2"
+              onClick={handleDeselectAll}
+              className="btn-secondary text-sm"
             >
-              {viewMode === 'grid' ? <List size={18} /> : <Grid size={18} />}
+              Deselect All
             </button>
-            <button
-              onClick={() => setBulkMode(!bulkMode)}
-              className={`btn-secondary flex items-center gap-2 ${bulkMode ? 'bg-primary-900 bg-opacity-20 border-primary-800' : ''}`}
-            >
-              <CheckSquare size={18} />
-              Bulk
-            </button>
+            <span className="text-sm text-gray-400">
+              {selectedItems.length} selected
+            </span>
           </div>
-
-          {showFilters && (
-            <div className="card p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Genres</label>
-                <div className="flex flex-wrap gap-2">
-                  {genres.map(genre => (
-                    <button
-                      key={genre}
-                      onClick={() => toggleGenreFilter(genre)}
-                      className={`px-3 py-1 rounded-lg text-sm capitalize ${
-                        selectedGenres.includes(genre)
-                          ? 'bg-primary-600 text-white'
-                          : 'bg-dark-hover text-gray-400 hover:bg-dark-border'
-                      }`}
-                    >
-                      {genre.replace('_', ' ')}
-                    </button>
-                  ))}
-                  {selectedGenres.length > 0 && (
-                    <button
-                      onClick={() => setSelectedGenres([])}
-                      className="px-3 py-1 rounded-lg text-sm text-red-400 hover:bg-red-900 hover:bg-opacity-20"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Word Count: {wordCountRange[0]} - {wordCountRange[1]} words
-                </label>
-                <div className="flex gap-4">
-                  <input
-                    type="range"
-                    min="0"
-                    max="300"
-                    value={wordCountRange[0]}
-                    onChange={(e) => setWordCountRange([parseInt(e.target.value), wordCountRange[1]])}
-                    className="flex-1"
-                  />
-                  <input
-                    type="range"
-                    min="0"
-                    max="300"
-                    value={wordCountRange[1]}
-                    onChange={(e) => setWordCountRange([wordCountRange[0], parseInt(e.target.value)])}
-                    className="flex-1"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Sort By</label>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="input w-full"
-                >
-                  <option value="date">Date (Newest First)</option>
-                  <option value="words">Word Count (Highest First)</option>
-                  <option value="genre">Genre (A-Z)</option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {bulkMode && selectedItems.length > 0 && (
-            <div className="card p-4 bg-primary-900 bg-opacity-20 border-primary-800">
-              <div className="flex items-center justify-between">
-                <p className="text-sm">
-                  <strong>{selectedItems.length}</strong> items selected
-                </p>
-                <div className="flex gap-2">
-                  <button onClick={handleBulkExport} className="btn-secondary text-sm">
-                    Export JSON
-                  </button>
-                  <button onClick={handleBulkDelete} className="btn-secondary text-sm text-red-400 hover:bg-red-900">
-                    Delete All
-                  </button>
-                  <button onClick={() => setSelectedItems([])} className="btn-secondary text-sm">
-                    Clear Selection
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <button
+            onClick={handleBulkDelete}
+            disabled={selectedItems.length === 0}
+            className="btn-secondary text-red-400 hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <Trash2 size={16} />
+            Delete Selected ({selectedItems.length})
+          </button>
         </div>
       )}
 
-      {/* Content */}
+      {/* Content Filters */}
+      <div className="mb-4">
+        <div className="text-sm font-medium text-gray-400 mb-2">Content Type</div>
+        <div className="flex gap-2 flex-wrap">
+          <FilterChip
+            active={contentFilter === 'all'}
+            onClick={() => setContentFilter('all')}
+            label="All"
+            count={series.length}
+          />
+          <FilterChip
+            active={contentFilter === 'singles'}
+            onClick={() => setContentFilter('singles')}
+            label="Singles"
+            count={series.filter(s => s.total_parts === 1).length}
+          />
+          <FilterChip
+            active={contentFilter === 'multi-part'}
+            onClick={() => setContentFilter('multi-part')}
+            label="Multi-Part"
+            count={series.filter(s => s.total_parts > 1).length}
+          />
+        </div>
+      </div>
+
+      {/* Asset Filters */}
+      <div className="mb-4">
+        <div className="text-sm font-medium text-gray-400 mb-2">Assets</div>
+        <div className="flex gap-2 flex-wrap">
+          <FilterChip
+            active={assetFilter === 'all'}
+            onClick={() => setAssetFilter('all')}
+            label="All"
+          />
+          <FilterChip
+            active={assetFilter === 'with-audio'}
+            onClick={() => setAssetFilter('with-audio')}
+            label="With Audio"
+            count={series.filter(s => s.has_audio).length}
+          />
+          <FilterChip
+            active={assetFilter === 'with-video'}
+            onClick={() => setAssetFilter('with-video')}
+            label="With Video"
+            count={series.filter(s => s.has_video).length}
+          />
+          <FilterChip
+            active={assetFilter === 'complete'}
+            onClick={() => setAssetFilter('complete')}
+            label="Complete"
+            count={series.filter(s => s.has_audio && s.has_video).length}
+          />
+        </div>
+      </div>
+
+      {/* Genre Filters */}
+      <div className="mb-4">
+        <div className="text-sm font-medium text-gray-400 mb-2">Genre</div>
+        <div className="flex gap-2 flex-wrap">
+          {genres.map(genre => (
+            <FilterChip
+              key={genre}
+              active={selectedGenres.includes(genre)}
+              onClick={() => toggleGenreFilter(genre)}
+              label={genre.replace('_', ' ')}
+              count={series.filter(s => s.genre === genre).length}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Sort */}
+      <div className="mb-6 flex items-center gap-3">
+        <span className="text-sm text-gray-400">Sort by:</span>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="bg-dark-lighter border border-dark-border rounded-lg px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+        >
+          <option value="date">Date (newest first)</option>
+          <option value="title">Title</option>
+          <option value="genre">Genre</option>
+        </select>
+        <span className="text-sm text-gray-400 ml-auto">
+          {filteredSeries.length} series
+        </span>
+      </div>
+
+      {/* Series Grid */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader className="animate-spin" size={32} />
+        <div className="flex items-center justify-center py-20">
+          <Loader className="animate-spin text-primary-500" size={40} />
+        </div>
+      ) : filteredSeries.length === 0 ? (
+        <div className="text-center py-20 text-gray-400">
+          <p className="text-lg mb-2">No series found</p>
+          <p className="text-sm">Try adjusting your filters or create some content in the Generator</p>
         </div>
       ) : (
-        <>
-          {/* Stories Tab */}
-          {activeTab === 'stories' && (
-            <>
-              {filteredStories.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  {stories.length === 0 ? 'No stories yet. Generate your first story!' : 'No stories match your filters.'}
-                </div>
-              ) : viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredStories.map((story) => (
-                    <div key={story.id} className="card relative">
-                      {bulkMode && (
-                        <button
-                          onClick={() => toggleItemSelection(story.id)}
-                          className="absolute top-3 right-3 z-10"
-                        >
-                          {selectedItems.includes(story.id) ? (
-                            <CheckSquare size={20} className="text-primary-400" />
-                          ) : (
-                            <Square size={20} className="text-gray-400" />
-                          )}
-                        </button>
-                      )}
-                      <div className="mb-3">
-                        <h3 className="font-bold text-sm mb-1 line-clamp-1">{story.title || 'Untitled Story'}</h3>
-                        <p className="text-xs text-gray-400 capitalize">
-                          {story.genre.replace('_', ' ')} • {story.word_count} words
-                        </p>
-                        <p className="text-xs text-gray-500">{formatDate(story.created_at)}</p>
-                      </div>
-                      <p className="text-sm text-gray-300 line-clamp-4 mb-3">{story.story}</p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            onReuseStory && onReuseStory(story)
-                            navigate('/generator')
-                          }}
-                          className="btn-primary flex-1 text-xs py-1"
-                        >
-                          Use
-                        </button>
-                        <button
-                          onClick={() => handleEditStory(story)}
-                          className="btn-secondary text-xs py-1 px-2"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDuplicateStory(story)}
-                          className="btn-secondary text-xs py-1 px-2"
-                        >
-                          <Copy size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteStory(story.id)}
-                          className="btn-secondary text-xs py-1 px-2 text-red-400 hover:bg-red-900"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredStories.map((story) => (
-                    <div key={story.id} className="card">
-                      <div className="flex items-start gap-4">
-                        {bulkMode && (
-                          <button
-                            onClick={() => toggleItemSelection(story.id)}
-                            className="mt-1"
-                          >
-                            {selectedItems.includes(story.id) ? (
-                              <CheckSquare size={20} className="text-primary-400" />
-                            ) : (
-                              <Square size={20} className="text-gray-400" />
-                            )}
-                          </button>
-                        )}
-                        <div className="flex-1">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <h3 className="font-bold">{story.title || 'Untitled Story'}</h3>
-                              <p className="text-sm text-gray-400 capitalize">
-                                {story.genre.replace('_', ' ')} • {story.word_count} words • {formatDate(story.created_at)}
-                              </p>
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => {
-                                  onReuseStory && onReuseStory(story)
-                                  navigate('/generator')
-                                }}
-                                className="btn-primary flex items-center gap-2 text-sm"
-                              >
-                                <RefreshCw size={14} />
-                                Use
-                              </button>
-                              <button
-                                onClick={() => handleEditStory(story)}
-                                className="btn-secondary px-2"
-                              >
-                                <Edit2 size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleDuplicateStory(story)}
-                                className="btn-secondary px-2"
-                              >
-                                <Copy size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteStory(story.id)}
-                                className="btn-secondary px-2 text-red-400 hover:bg-red-900"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
-                          <p className="text-gray-300 line-clamp-2">{story.story}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Audios Tab */}
-          {activeTab === 'audios' && (
-            <div className="grid gap-4">
-              {audios.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  No audio files yet. Generate audio to see it here!
-                </div>
-              ) : (
-                audios.map((audio) => (
-                  <div key={audio.name} className="card">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h3 className="font-bold">{audio.name}</h3>
-                        <p className="text-sm text-gray-400">
-                          {audio.duration?.toFixed(1)}s • {formatSize(audio.size)} • {formatDate(audio.modified)}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          onReuseAudio && onReuseAudio(audio)
-                          navigate('/generator')
-                        }}
-                        className="btn-primary flex items-center gap-2"
-                      >
-                        <RefreshCw size={16} />
-                        Use This Audio
-                      </button>
-                    </div>
-                    <AudioPlayer
-                      src={`${API_URL}/files/audio/${audio.name}`}
-                    />
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-
-          {/* Videos Tab */}
-          {activeTab === 'videos' && (
-            <div className="grid gap-4">
-              {videos.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  No videos yet. Create your first video to see it here!
-                </div>
-              ) : (
-                videos.map((video) => (
-                  <div key={video.name} className="card">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h3 className="font-bold">{video.name}</h3>
-                        <p className="text-sm text-gray-400">
-                          {formatSize(video.size)} • {formatDate(video.modified)}
-                        </p>
-                        {video.metadata && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Genre: {video.metadata.genre} • Background: {video.metadata.background}
-                          </p>
-                        )}
-                      </div>
-                      <a
-                        href={`${API_URL}/files/video/${video.name}`}
-                        download
-                        className="btn-secondary flex items-center gap-2"
-                      >
-                        <Download size={16} />
-                        Download
-                      </a>
-                    </div>
-                    <VideoPlayer
-                      src={`${API_URL}/files/video/${video.name}`}
-                    />
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Edit Modal */}
-      {editingStory && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-dark-bg border border-dark-border rounded-lg max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-dark-border">
-              <h2 className="text-xl font-bold">Edit Story</h2>
-              <p className="text-sm text-gray-400 mt-1">
-                {editContent.split(' ').length} words • ~{Math.ceil(editContent.split(' ').length / 2.5)}s
-              </p>
-            </div>
-            <div className="p-6 flex-1 overflow-y-auto">
-              <textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                className="input w-full h-96 resize-none font-mono text-sm"
-                autoFocus
-              />
-            </div>
-            <div className="p-6 border-t border-dark-border flex gap-3 justify-end">
-              <button onClick={() => setEditingStory(null)} className="btn-secondary">
-                Cancel
-              </button>
-              <button onClick={handleSaveEdit} className="btn-primary">
-                Save Changes
-              </button>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredSeries.map((s) => (
+            <SeriesCard key={s.story_id} s={s} />
+          ))}
         </div>
       )}
+
+      {/* Detail Modal */}
+      <DetailModal />
     </div>
   )
 }

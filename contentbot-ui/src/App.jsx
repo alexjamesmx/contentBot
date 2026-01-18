@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, NavLink, useNavigate } from 'react-router-dom'
-import { Home, Settings, FileVideo, Type, Image, BarChart3, Sparkles, FolderOpen } from 'lucide-react'
+import { Home, Settings, FileVideo, Type, Image, BarChart3, Sparkles, FolderOpen, Layers } from 'lucide-react'
 
 // Pages
 import Dashboard from './pages/Dashboard'
 import Generator from './pages/Generator'
-import Templates from './pages/Templates'
 import MediaManager from './pages/MediaManager'
-import SubtitleConfig from './pages/SubtitleConfig'
 import SettingsPage from './pages/SettingsPage'
 import Analytics from './pages/Analytics'
 import Library from './pages/Library'
@@ -38,9 +36,7 @@ function App() {
             <NavItem to="/" icon={<Home size={20} />} label="Dashboard" />
             <NavItem to="/generator" icon={<FileVideo size={20} />} label="Generator" />
             <NavItem to="/library" icon={<FolderOpen size={20} />} label="Library" />
-            <NavItem to="/templates" icon={<Type size={20} />} label="Templates" />
             <NavItem to="/media" icon={<Image size={20} />} label="Media" />
-            <NavItem to="/subtitles" icon={<Type size={20} />} label="Subtitles" />
             <NavItem to="/analytics" icon={<BarChart3 size={20} />} label="Analytics" />
             <NavItem to="/settings" icon={<Settings size={20} />} label="Settings" />
           </nav>
@@ -73,9 +69,7 @@ function App() {
                 />
               }
             />
-            <Route path="/templates" element={<Templates />} />
             <Route path="/media" element={<MediaManager />} />
-            <Route path="/subtitles" element={<SubtitleConfig />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>

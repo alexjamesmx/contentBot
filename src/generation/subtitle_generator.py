@@ -66,6 +66,83 @@ class SubtitleGenerator:
 
         return subtitles
 
+    def convert_char_timing_to_words(
+        self,
+        text: str,
+        char_start_times: List[float],
+        char_end_times: List[float],
+        characters: List[str]
+    ) -> List[Tuple[float, float, str]]:
+        """Convert character-level timing to word-level timing.
+
+        Takes character-level timestamps from ElevenLabs API and derives
+        word-level timing by mapping character indices to words.
+
+        Args:
+            text: Original text (before TTS)
+            char_start_times: Start time for each character
+            char_end_times: End time for each character
+            characters: List of characters from alignment
+
+        Returns:
+            List of (start_time, end_time, word) tuples
+        """
+        words = text.split()
+        word_timings = []
+
+        char_idx = 0
+        for word in words:
+            word_len = len(word)
+
+            # Safety check: ensure we don't go out of bounds
+            if char_idx + word_len > len(char_start_times):
+                # If we run out of timing data, break
+                print(f"[WARN] Timing data shorter than text. Using available data.")
+                break
+
+            # Get timing for first and last character of this word
+            word_start_time = char_start_times[char_idx]
+            word_end_time = char_end_times[char_idx + word_len - 1]
+
+            word_timings.append((word_start_time, word_end_time, word))
+
+            # Move to next word (skip word length + 1 for space)
+            char_idx += word_len + 1
+
+        return word_timings
+
+    def generate_subtitles_from_word_timing(
+        self,
+        word_timings: List[Tuple[float, float, str]]
+    ) -> List[Tuple[float, float, str]]:
+        """Generate subtitle chunks from precise word-level timing.
+
+        Uses ACTUAL word timing from TTS API instead of estimated linear timing.
+        This ensures perfect synchronization with audio.
+
+        Args:
+            word_timings: List of (start_time, end_time, word) from character alignment
+
+        Returns:
+            List of (start_time, end_time, subtitle_text) chunks
+        """
+        if not word_timings:
+            return []
+
+        subtitles = []
+
+        for i in range(0, len(word_timings), self.words_per_chunk):
+            chunk = word_timings[i:i + self.words_per_chunk]
+
+            # Use ACTUAL timing from TTS (not estimated)
+            start_time = chunk[0][0]  # First word's actual start time
+            end_time = chunk[-1][1]   # Last word's actual end time
+            text = " ".join([w[2] for w in chunk])
+
+            subtitles.append((start_time, end_time, text))
+
+        return subtitles
+
     def _split_preserving_emphasis(self, text: str) -> List[str]:
         """Split text into words while preserving CAPS emphasis.
 

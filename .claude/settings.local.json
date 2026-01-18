@@ -23,9 +23,19 @@
       "Bash(ffprobe:*)",
       "Bash(pkill:*)",
       "Bash(taskkill //F //IM python.exe)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(pytest:*)",
+      "Bash(npx eslint:*)",
+      "Bash(curl:*)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(taskkill:*)",
+      "Bash(tasklist:*)",
+      "Bash(netstat:*)",
+      "Bash(xargs -I {} wmic process where processid={} delete)",
+      "Bash(wmic process where \"name=''''python.exe'''' and commandline like ''''%app.py%''''\" delete)"
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "model": "claude-sonnet-4-5-20250929"
 }

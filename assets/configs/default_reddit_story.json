@@ -1,0 +1,46 @@
+{
+  "config_id": "reddit_story_default_v1",
+  "config_name": "Reddit Story - Default",
+  "description": "Default configuration matching current hardcoded values in video_composer.py",
+
+  "subtitle_config": {
+    "font_path": "Montserrat-Black.ttf",
+    "font_size": 72,
+    "color": "#FFFF00",
+    "stroke_color": "#000000",
+    "stroke_width": 4,
+    "position_from_bottom": 420,
+    "safe_zone_padding": 50,
+    "horizontal_padding": 100,
+    "vertical_padding": 20,
+    "words_per_chunk": 4,
+    "use_yellow_text": true
+  },
+
+  "video_config": {
+    "resolution": [1080, 1920],
+    "fps": 30,
+    "codec": "libx264",
+    "preset": "slow",
+    "bitrate": "8000k",
+    "crf": "18",
+    "audio_codec": "aac",
+    "audio_bitrate": "192k",
+    "ffmpeg_params": {
+      "pix_fmt": "yuv420p",
+      "profile:v": "high",
+      "level": "4.2",
+      "movflags": "+faststart"
+    }
+  },
+
+  "tts_config": {
+    "provider": "elevenlabs",
+    "voice_id": "XrExE9yKIg1WjnnlVkGX",
+    "stability": 0.45,
+    "similarity_boost": 0.75,
+    "style": 0.3
+  },
+
+  "effects_timeline": []
+}

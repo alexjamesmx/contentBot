@@ -20,24 +20,30 @@ class ElevenLabsTTS:
     """Premium TTS using ElevenLabs (requires API key)."""
 
     VIRAL_VOICES = {
-        "mark":   {"voice_id": "XrExE9yKIg1WjnnlVkGX", "name": "Mark",
-                   "description": "Best for storytelling, casual TikToks (friendly narrator)",
+        "mark":   {"voice_id": "TX3LPaxmHKxFdv7VOQHJ", "name": "Liam",
+                   "description": "Energetic, confident social media creator (perfect for TikTok)",
                    "best_for": ["comedy", "aita", "relationship_drama"]},
         "snap":   {"voice_id": "gWaDC0oXAheKoZfljzuI", "name": "Snap",
-                   "description": "Playful, upbeat, Gen-Z friendly (memes, commentary)",
+                   "description": "Playful, excited viral content voice (memes, commentary)",
                    "best_for": ["comedy", "genz_chaos"]},
-        "peter":  {"voice_id": "N2lVS1w4EtoT3dr4eOWO", "name": "Peter",
-                   "description": "Bold narrator voice (trending narrator format)",
+        "peter":  {"voice_id": "N2lVS1w4EtoT3dr4eOWO", "name": "Callum",
+                   "description": "Husky trickster voice (character storytelling)",
                    "best_for": ["terror", "aita"]},
         "viraj":  {"voice_id": "bajNon13EdhNMndG3z05", "name": "Viraj",
-                   "description": "Warm, passionate, expressive (Indian accent)",
+                   "description": "Energetic, clear narrator (warm, passionate)",
                    "best_for": ["relationship_drama", "aita"]},
-        "rachel": {"voice_id": "21m00Tcm4TlvDq8ikWAM", "name": "Rachel",
-                   "description": "Clear, calm narrator (professional storytelling)",
+        "rachel": {"voice_id": "EXAVITQu4vr4xnSDxMaL", "name": "Sarah",
+                   "description": "Mature, reassuring, confident (professional storytelling)",
                    "best_for": ["terror", "aita"]},
         "adam":   {"voice_id": "pNInz6obpgDQGcFmaJgB", "name": "Adam",
-                   "description": "Deep, authoritative (serious content)",
+                   "description": "Dominant, firm voice (serious content)",
                    "best_for": ["terror", "aita"]},
+        "brian":  {"voice_id": "nPczCjzI2devNBz1zQrb", "name": "Brian",
+                   "description": "Deep, resonant and comforting (social media)",
+                   "best_for": ["comedy", "relationship_drama"]},
+        "george": {"voice_id": "JBFqnCBsd6RMkjVDRZzb", "name": "George",
+                   "description": "Warm, captivating storyteller (British accent)",
+                   "best_for": ["terror", "aita", "relationship_drama"]},
     }
 
     def __init__(self, api_key: str):
@@ -194,8 +200,8 @@ class ElevenLabsTTS:
             )
         except Exception as e:
             if "voice" in str(e).lower():
-                print("[WARN] Voice ID not available on this account. Falling back to 'rachel'.")
-                voice_id = self.VIRAL_VOICES["rachel"]["voice_id"]
+                print(f"[WARN] Voice '{voice}' not available on this account. Falling back to 'adam'.")
+                voice_id = self.VIRAL_VOICES["adam"]["voice_id"]
                 stream = self.client.text_to_speech.convert(
                     voice_id=voice_id,
                     model_id=model_id,
@@ -222,6 +228,158 @@ class ElevenLabsTTS:
         self._cache_audio(cache_key, str(output_path), text, voice)
 
         return str(output_path)
+
+    def generate_audio_with_timestamps(
+        self,
+        text: str,
+        voice: str = "mark",
+        output_path: Optional[str] = None,
+        stability: float = 0.45,
+        similarity_boost: float = 0.75,
+        style: float = 0.3,
+        model_id: str = "eleven_turbo_v2_5",
+        output_format: str = "mp3_44100_128",
+        add_emotion: bool = True
+    ) -> tuple:
+        """Generate audio WITH character-level timing data for perfect subtitle sync.
+
+        Args:
+            text: Story text to convert
+            voice: Voice ID (mark, snap, peter, viraj, rachel, adam)
+            output_path: Optional output path (uses cache by default)
+            stability: 0.45 optimal for stories (prevents monotony)
+            similarity_boost: 0.75 recommended
+            style: 0.3 for emotional stories, 0.0 for flat narration
+            model_id: eleven_turbo_v2_5 best for storytelling with emotion
+            output_format: Audio quality
+            add_emotion: Automatically add pauses and emphasis (recommended)
+
+        Returns:
+            Tuple of (audio_path: str, alignment_data: dict)
+            alignment_data = {
+                'characters': List[str],
+                'character_start_times_seconds': List[float],
+                'character_end_times_seconds': List[float]
+            }
+        """
+        import base64
+
+        # Add emotional markers for more natural delivery
+        if add_emotion:
+            from src.generation.story_generator import StoryGenerator
+            original_text = text
+            text = StoryGenerator.add_emotional_markers(text)
+            if text != original_text:
+                print("[EMOTION] Added natural pauses and emphasis for TTS")
+
+        if voice not in self.VIRAL_VOICES:
+            print(f"[WARNING] Unknown voice '{voice}', using 'mark'")
+            voice = "mark"
+
+        voice_id = self.VIRAL_VOICES[voice]["voice_id"]
+        print(f"[ELEVENLABS] Using voice: {self.VIRAL_VOICES[voice]['name']}")
+        print(f"[INFO] {self.VIRAL_VOICES[voice]['description']}")
+
+        # Generate cache key from content
+        settings = {
+            'stability': stability,
+            'similarity_boost': similarity_boost,
+            'style': style,
+            'model_id': model_id,
+            'with_timestamps': True  # Different cache for timestamped audio
+        }
+        cache_key = self._get_cache_key(text, voice, settings)
+
+        # Check cache first (saves API credits!)
+        if cache_key in self.cache and 'alignment' in self.cache[cache_key]:
+            cached_path = Path(self.cache[cache_key]['path'])
+            if cached_path.exists():
+                print(f"[CACHE HIT] Reusing cached ElevenLabs audio with timestamps!")
+                print(f"[CACHE] File: {cached_path.name}")
+                return str(cached_path), self.cache[cache_key]['alignment']
+
+        # Set output path (use cache directory)
+        if output_path is None:
+            output_path = self.cache_dir / f"{cache_key}_ts.mp3"
+        else:
+            output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Remove existing file if regenerating
+        if output_path.exists():
+            output_path.unlink()
+
+        print(f"[ELEVENLABS] Generating audio with timestamps (perfect subtitle sync)...")
+
+        # Convert with timestamps
+        try:
+            response = self.client.text_to_speech.convert_with_timestamps(
+                voice_id=voice_id,
+                model_id=model_id,
+                text=text,
+                output_format=output_format,
+                voice_settings=VoiceSettings(
+                    stability=stability,
+                    similarity_boost=similarity_boost,
+                    style=style,
+                    use_speaker_boost=True,
+                ),
+            )
+        except Exception as e:
+            if "voice" in str(e).lower():
+                print(f"[WARN] Voice '{voice}' not available. Falling back to 'adam'.")
+                voice_id = self.VIRAL_VOICES["adam"]["voice_id"]
+                response = self.client.text_to_speech.convert_with_timestamps(
+                    voice_id=voice_id,
+                    model_id=model_id,
+                    text=text,
+                    output_format=output_format,
+                    voice_settings=VoiceSettings(
+                        stability=stability,
+                        similarity_boost=similarity_boost,
+                        style=style,
+                        use_speaker_boost=True,
+                    ),
+                )
+            else:
+                raise
+
+        # Extract audio and alignment data
+        audio_base64 = response.audio_base_64  # Note: underscore in attribute name
+        alignment_data = response.alignment or {}
+
+        if not audio_base64:
+            raise ValueError("No audio_base64 in response from ElevenLabs")
+
+        # Decode and save audio
+        audio_bytes = base64.b64decode(audio_base64)
+        with open(output_path, "wb") as f:
+            f.write(audio_bytes)
+
+        # Convert alignment data to dict for serialization
+        alignment_dict = {}
+        if alignment_data:
+            alignment_dict = {
+                'characters': alignment_data.characters,
+                'character_start_times_seconds': alignment_data.character_start_times_seconds,
+                'character_end_times_seconds': alignment_data.character_end_times_seconds
+            }
+
+        print(f"[TIMING] Received {len(alignment_dict.get('characters', []))} character timestamps")
+
+        # Cache audio + alignment data
+        import time
+        self.cache[cache_key] = {
+            'path': str(output_path),
+            'voice': voice,
+            'text_preview': text[:100],
+            'created_at': time.time(),
+            'alignment': alignment_dict  # ✅ Store timing data as dict
+        }
+        self._save_cache_index()
+        print(f"[CACHE] Saved audio + timing data for future reuse")
+
+        return str(output_path), alignment_data  # Return original object
 
 
 

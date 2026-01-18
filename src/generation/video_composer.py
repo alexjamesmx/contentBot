@@ -69,7 +69,8 @@ class VideoComposer:
         height: int = VIDEO_HEIGHT,
         fps: int = VIDEO_FPS,
         use_yellow_text: bool = True,  # Yellow = more viral
-        add_zoom_effects: bool = True   # Pattern interrupts
+        add_zoom_effects: bool = True,   # Pattern interrupts
+        config_path: Optional[str] = None  # Optional JSON config
     ):
         """Initialize video composer.
 
@@ -79,12 +80,53 @@ class VideoComposer:
             fps: Frames per second (default: 30)
             use_yellow_text: Use yellow text (more viral than white)
             add_zoom_effects: Add zoom pattern interrupts every 3-5s
+            config_path: Optional path to JSON config file (overrides defaults)
         """
-        self.width = width
-        self.height = height
-        self.fps = fps
-        self.use_yellow_text = use_yellow_text
-        self.add_zoom_effects = add_zoom_effects
+        # Load config if provided, otherwise use hardcoded defaults (backward compatible)
+        self.config = self._load_config(config_path) if config_path else None
+
+        # Set values from config or use constructor params/defaults
+        if self.config:
+            video_cfg = self.config.get('video_config', {})
+            subtitle_cfg = self.config.get('subtitle_config', {})
+
+            self.width = video_cfg.get('resolution', [width, height])[0]
+            self.height = video_cfg.get('resolution', [width, height])[1]
+            self.fps = video_cfg.get('fps', fps)
+            self.use_yellow_text = subtitle_cfg.get('use_yellow_text', use_yellow_text)
+            self.add_zoom_effects = add_zoom_effects  # Keep for now
+        else:
+            self.width = width
+            self.height = height
+            self.fps = fps
+            self.use_yellow_text = use_yellow_text
+            self.add_zoom_effects = add_zoom_effects
+
+    def _load_config(self, path: str) -> dict:
+        """Load configuration from JSON file.
+
+        Args:
+            path: Path to JSON config file
+
+        Returns:
+            Configuration dictionary
+
+        Raises:
+            FileNotFoundError: If config file doesn't exist
+            json.JSONDecodeError: If config file is invalid JSON
+        """
+        import json
+        from pathlib import Path
+
+        config_file = Path(path)
+        if not config_file.exists():
+            raise FileNotFoundError(f"Config file not found: {path}")
+
+        with open(config_file, 'r') as f:
+            config = json.load(f)
+
+        print(f"[CONFIG] Loaded configuration from: {path}")
+        return config
 
     def create_video(
         self,
@@ -94,7 +136,8 @@ class VideoComposer:
         output_path: Optional[str] = None,
         story_metadata: Optional[dict] = None,
         genre: str = "comedy",
-        progress_callback: Optional[Callable] = None
+        progress_callback: Optional[Callable] = None,
+        effect_timeline: Optional[List[dict]] = None
     ) -> str:
         """Create final video with all components.
 
@@ -106,6 +149,7 @@ class VideoComposer:
             story_metadata: Optional story info for filename
             genre: Video genre for font/styling
             progress_callback: Optional callback for progress updates
+            effect_timeline: Optional list of effect dicts from JSON config
 
         Returns:
             Path to generated video
@@ -124,16 +168,65 @@ class VideoComposer:
         print(f"[VIDEO] Loading background: {Path(background_video).name}")
         background = self._prepare_background(background_video, audio_duration)
 
-        # Set audio to background
+        # TWO-PASS EFFECT ARCHITECTURE:
+        # Pass 1: Apply background-only effects (zoom, background_change)
+        # Pass 2: Apply subtitle effects after subtitle clips are created
+
+        background_effects = []
+        subtitle_effects = []
+
+        if effect_timeline:
+            # Separate effects by type
+            for effect in effect_timeline:
+                effect_type = effect.get('type')
+                if effect_type in ['zoom_effect', 'background_change']:
+                    background_effects.append(effect)
+                elif effect_type == 'subtitle_style_override':
+                    subtitle_effects.append(effect)
+
+        # PASS 1: Apply background effects to raw video clip
+        if background_effects:
+            from src.effects import EffectEngine
+            print(f"[PASS 1] Applying {len(background_effects)} background effects...")
+            story_text = story_metadata.get('story', '') if story_metadata else ''
+
+            bg_engine = EffectEngine(background_effects)
+            background, _, _ = bg_engine.apply_effects(
+                background,
+                subtitles or [],
+                story_text
+            )
+            print(f"[PASS 1] Background effects applied")
+
+        # Set audio to (possibly effected) background
         video_with_audio = background.with_audio(audio)
 
-        # Add text subtitles if provided
+        # Create subtitle clips
+        subtitle_clips = []
         if subtitles:
-            # Get font name for display
             font_path = self._get_viral_font(genre)
             font_name = Path(font_path).name if font_path else "system default"
-            print(f"Adding {len(subtitles)} subtitles with {font_name}...")
-            video_with_subtitles = self._add_subtitles(video_with_audio, subtitles, genre)
+            print(f"[SUBTITLES] Creating {len(subtitles)} subtitle clips with {font_name}...")
+            subtitle_clips = self._create_subtitle_clips(subtitles, genre)
+
+        # PASS 2: Apply subtitle effects to subtitle clips
+        if subtitle_effects and subtitle_clips:
+            from src.effects import EffectEngine
+            print(f"[PASS 2] Applying {len(subtitle_effects)} subtitle effects...")
+            story_text = story_metadata.get('story', '') if story_metadata else ''
+
+            sub_engine = EffectEngine(subtitle_effects)
+            _, _, subtitle_clips = sub_engine.apply_effects(
+                background,  # Not modified in this pass
+                subtitles or [],
+                story_text,
+                subtitle_clips
+            )
+            print(f"[PASS 2] Subtitle effects applied")
+
+        # Composite video with subtitle clips
+        if subtitle_clips:
+            video_with_subtitles = CompositeVideoClip([video_with_audio] + subtitle_clips)
         else:
             video_with_subtitles = video_with_audio
 
@@ -261,21 +354,25 @@ class VideoComposer:
 
         return clip
 
-    def _add_subtitles(
+    def _create_subtitle_clips(
         self,
-        video: VideoFileClip,
         subtitles: List[Tuple[float, float, str]],
-        genre: str = "comedy"
-    ) -> CompositeVideoClip:
-        """Add subtitles with viral effects.
+        genre: str = "comedy",
+        font_size: int = 72,
+        text_color: str = None,
+        stroke_width: int = 4
+    ) -> List:
+        """Create individual subtitle clips (not composited yet).
 
         Args:
-            video: Video clip
             subtitles: List of (start, end, text) tuples
             genre: Video genre for font selection
+            font_size: Font size (default 72)
+            text_color: Text color override (default uses use_yellow_text setting)
+            stroke_width: Stroke width (default 4)
 
         Returns:
-            Video with animated subtitles
+            List of subtitle clip objects
         """
         subtitle_clips = []
 
@@ -283,7 +380,8 @@ class VideoComposer:
         font_path = self._get_viral_font(genre)
 
         # Yellow text = more viral
-        text_color = 'yellow' if self.use_yellow_text else 'white'
+        if text_color is None:
+            text_color = 'yellow' if self.use_yellow_text else 'white'
 
         # Safe zone positioning (based on 2025 TikTok/Shorts standards)
         # Bottom 420px reserved for UI elements
@@ -295,15 +393,14 @@ class VideoComposer:
             import numpy as np
 
             # Font setup
-            pil_font = ImageFont.truetype(font_path, size=72)
+            pil_font = ImageFont.truetype(font_path, size=font_size)
 
             # Measure text with stroke padding
-            stroke_w = 4
             temp_img = Image.new('RGB', (1, 1))
             temp_draw = ImageDraw.Draw(temp_img)
-            bbox = temp_draw.textbbox((0, 0), text.upper(), font=pil_font, stroke_width=stroke_w)
-            text_width = bbox[2] - bbox[0] + stroke_w * 2
-            text_height = bbox[3] - bbox[1] + stroke_w * 2
+            bbox = temp_draw.textbbox((0, 0), text.upper(), font=pil_font, stroke_width=stroke_width)
+            text_width = bbox[2] - bbox[0] + stroke_width * 2
+            text_height = bbox[3] - bbox[1] + stroke_width * 2
 
             # Create image with padding
             img_width = min(text_width + 20, self.width - 100)
@@ -314,13 +411,13 @@ class VideoComposer:
             draw = ImageDraw.Draw(img)
 
             # Center text in image
-            x = (img_width - text_width) // 2 + stroke_w
-            y = (img_height - text_height) // 2 + stroke_w
+            x = (img_width - text_width) // 2 + stroke_width
+            y = (img_height - text_height) // 2 + stroke_width
 
             # Draw text with stroke
             text_col = (255, 255, 0) if text_color == 'yellow' else (255, 255, 255)
             draw.text((x, y), text.upper(), font=pil_font, fill=text_col,
-                     stroke_width=stroke_w, stroke_fill=(0, 0, 0))
+                     stroke_width=stroke_width, stroke_fill=(0, 0, 0))
 
             # Convert to MoviePy clip
             from moviepy import ImageClip
@@ -329,12 +426,7 @@ class VideoComposer:
             # CRITICAL: Get actual text height BEFORE positioning
             text_height = txt_clip.h if txt_clip.h else 100
 
-            # SIMPLER APPROACH: Use tuple positioning (center, bottom) with negative offset
-            # This positions from the bottom edge instead of top
-            # Format: ('center', height - offset) where offset is how far from bottom
-            y_from_bottom = -safe_bottom_margin  # Negative = from bottom
-
-            # Alternative: Calculate exact pixel position to ensure no cutoff
+            # Calculate exact pixel position to ensure no cutoff
             # Add extra 50px padding just to be absolutely sure
             y_position = self.height - safe_bottom_margin - text_height - 50
 
@@ -351,10 +443,7 @@ class VideoComposer:
 
             subtitle_clips.append(txt_clip)
 
-        # Composite video with subtitles
-        final_video = CompositeVideoClip([video] + subtitle_clips)
-
-        return final_video
+        return subtitle_clips
 
     def _get_viral_font(self, genre: str = "comedy") -> str:
         """Get most viral font for the genre.

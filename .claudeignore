@@ -1,0 +1,26 @@
+# Dependencies (50MB+)
+node_modules/
+contentbot-ui/node_modules/
+venv/
+__pycache__/
+
+# Build artifacts
+contentbot-ui/dist/
+*.pyc
+*.pyo
+
+# Output videos (large binaries)
+output/pending_review/*.mp4
+output/approved/*.mp4
+cache/
+
+# Archives
+docs/archive/
+scripts/debug/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
